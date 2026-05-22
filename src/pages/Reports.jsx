@@ -34,8 +34,9 @@ export default function Reports() {
   ];
 
   /* ---------------- CORE DATA INSIGHTS ---------------- */
-  const totalSales = useMemo(() => sales.reduce((s, i) => s + i.total, 0), []);
-  const totalExpenses = useMemo(() => expenses.reduce((s, i) => s + i.total, 0), []);
+  // FIXED: Added appropriate state dependencies to ensure calculations re-run if arrays change
+  const totalSales = useMemo(() => sales.reduce((s, i) => s + i.total, 0), [sales]);
+  const totalExpenses = useMemo(() => expenses.reduce((s, i) => s + i.total, 0), [expenses]);
   const netProfit = totalSales - totalExpenses;
 
   const topProducts = useMemo(() => [...products].sort((a, b) => b.sold - a.sold), [products]);
@@ -50,6 +51,7 @@ export default function Reports() {
     <div className="max-w-[1500px] mx-auto p-4 md:p-8 space-y-8 bg-neutral-50/40 min-h-screen antialiased">
       
       {/* FORCE BROWSER TO UNDERSTAND COLOR PRINTING & LAYOUT FORCING */}
+      {/* FIXED: Corrected 'grid-template-cols' to standard native 'grid-template-columns' */}
       <style dangerouslySetInnerHTML={{__html: `
         @media print {
           body { 
@@ -61,7 +63,7 @@ export default function Reports() {
           .no-print { display: none !important; }
           .print-container { padding: 0 !important; margin: 0 !important; width: 100% !important; }
           .print-force-visible { display: block !important; visibility: visible !important; }
-          .print-grid { display: grid !important; grid-template-cols: repeat(2, minmax(0, 1fr)) !important; gap: 16px !important; }
+          .print-grid { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 16px !important; }
         }
       `}} />
 
@@ -138,7 +140,7 @@ export default function Reports() {
           <div className="flex justify-between items-start">
             <span className="text-[11px] font-black text-neutral-400 uppercase tracking-wider block">Net Capital Gain</span>
             <span className="bg-white/10 text-emerald-400 text-[10px] font-extrabold px-2 py-0.5 rounded-md no-print">
-              +{((netProfit / totalSales) * 100).toFixed(1)}% Yield
+              +{totalSales > 0 ? ((netProfit / totalSales) * 100).toFixed(1) : "0.0"}% Yield
             </span>
           </div>
           <div className="mt-4 space-y-1">
@@ -172,14 +174,14 @@ export default function Reports() {
           </div>
         </div>
 
-        {/* DATA LEDGER GROUPS - Sourced dynamically but configured to show systematically in PDFs */}
+        {/* DATA LEDGER GROUPS */}
         
         {/* REVENUE SALES TABLES */}
         <div className={`bg-white border border-neutral-200 rounded-3xl p-6 shadow-sm space-y-4 ${tab === "sales" ? "block" : "hidden print:block"}`}>
           <h2 className="text-xs font-black text-neutral-400 uppercase tracking-widest flex items-center gap-2">
             <Calendar size={12} className="text-neutral-400 no-print" />
             <span>Sales Report Ledger</span>
-          </h2>
+          </h2> 
 
           <div className="overflow-hidden border border-neutral-200 rounded-2xl">
             <table className="w-full text-left text-xs font-medium text-neutral-600">
@@ -208,7 +210,7 @@ export default function Reports() {
           <h2 className="text-xs font-black text-neutral-400 uppercase tracking-widest flex items-center gap-2">
             <ArrowDownRight size={14} className="text-neutral-400 no-print" />
             <span>Expense Report Ledger</span>
-          </h2>
+          </h2> 
 
           <div className="overflow-hidden border border-neutral-200 rounded-2xl">
             <table className="w-full text-left text-xs font-medium text-neutral-600">
@@ -240,7 +242,7 @@ export default function Reports() {
             <h2 className="text-xs font-black text-neutral-400 uppercase tracking-widest flex items-center gap-1.5">
               <Flame size={14} className="text-orange-500 no-print" />
               <span>Top Performing Products</span>
-            </h2>
+            </h2> 
 
             <div className="divide-y divide-neutral-200 border border-neutral-200 rounded-2xl overflow-hidden">
               {topProducts.map((p, i) => (
@@ -264,7 +266,7 @@ export default function Reports() {
             <h2 className="text-xs font-black text-neutral-400 uppercase tracking-widest flex items-center gap-1.5">
               <ArrowDownRight size={14} className="text-neutral-400 no-print" />
               <span>Low Performing Products</span>
-            </h2>
+            </h2> 
 
             <div className="divide-y divide-neutral-200 border border-neutral-200 rounded-2xl overflow-hidden">
               {lowProducts.map((p, i) => (

@@ -3,6 +3,7 @@ import AdminLayout from "./layout/AdminLayout";
 
 import Dashboard from "./pages/Dashboard";
 import POS from "./pages/POS";
+import Kitchen from "./pages/Kitchen";
 import Products from "./pages/Products";
 import Expenses from "./pages/Expenses";
 import Reports from "./pages/Reports";
@@ -17,6 +18,7 @@ export default function App() {
         <Route element={<AdminLayout />}>
           <Route path="/" element={<Dashboard />} />
           <Route path="/pos" element={<POS />} />
+          <Route path="/kitchen" element={<Kitchen />} />
           <Route path="/products" element={<Products />} />
           <Route path="/expenses" element={<Expenses />} />
           <Route path="/reports" element={<Reports />} />

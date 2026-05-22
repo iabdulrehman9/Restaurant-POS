@@ -14,6 +14,7 @@ import {
 const menuItems = [
   { label: "Dashboard", icon: LayoutDashboard, path: "/" },
   { label: "POS / Billing", icon: Store, path: "/pos" },
+  { label: "Kitchen / Order", icon: Store, path: "/kitchen" },
   { label: "Products", icon: Package, path: "/products" },
   { label: "Expenses", icon: Banknote, path: "/expenses" },
   { label: "Reports", icon: BarChart3, path: "/reports" },
