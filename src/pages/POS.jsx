@@ -284,10 +284,10 @@ export default function POS() {
   return (
     <div className="grid grid-cols-12 h-screen max-h-screen bg-stone-50 text-stone-800 antialiased font-sans selection:bg-orange-100 overflow-hidden">
       
-      {/* LEFT PANEL: CATALOG MENU */}
-      <div className="col-span-8 pt-2 px-4 pb-0 flex flex-col border-r border-stone-200 bg-stone-50/50 overflow-hidden h-full">
+      {/* LEFT PANEL: CATALOG MENU (Fixed structure, content scrolls) */}
+      <div className="col-span-8 pt-4 px-4 pb-0 flex flex-col border-r border-stone-200 bg-stone-50/50 overflow-hidden h-full">
         
-        {/* BRAND HEADER & SEARCH COMPONENT */}
+        {/* BRAND HEADER & SEARCH COMPONENT (Fixed) */}
         <div className="flex items-center justify-between mb-3 flex-shrink-0 gap-6">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-orange-500 flex items-center justify-center text-white shadow-lg shadow-orange-500/20">
@@ -312,7 +312,7 @@ export default function POS() {
           </div>
         </div>
 
-        {/* CONTROLS CONTAINER */}
+        {/* CONTROLS CONTAINER (Fixed Category Row) */}
         <div className="flex-shrink-0 mb-4">
           <div 
             className="flex items-center gap-2 pb-1 overflow-x-auto"
@@ -339,8 +339,8 @@ export default function POS() {
           </div>
         </div>
 
-        {/* PRODUCT SHELF */}
-        <div className="flex-1 overflow-y-auto pb-6 pr-1 -mr-1">
+        {/* PRODUCT SHELF (Strictly Scrollable Area) */}
+        <div className="flex-1 overflow-y-auto pb-6 pr-1">
           {filteredProducts.length === 0 ? (
             <div className="text-center py-16 bg-white border border-stone-200 rounded-2xl p-6 shadow-sm">
               <p className="text-xs font-bold text-stone-400">No matching food items found.</p>
@@ -376,10 +376,10 @@ export default function POS() {
         </div>
       </div>
 
-      {/* OPTIMIZED RIGHT PANEL */}
-      <div className="col-span-4 bg-white flex flex-col shadow-2xl z-10 overflow-hidden h-full">
+      {/* OPTIMIZED RIGHT PANEL (Fixed structural envelope) */}
+      <div className="col-span-4 bg-white flex flex-col shadow-2xl z-10 overflow-hidden h-full min-h-0">
         
-        {/* TOP META BAR */}
+        {/* TOP META BAR (Fixed) */}
         <div className="px-4 py-3 border-b border-stone-100 flex items-center justify-between bg-stone-50/40 flex-shrink-0">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -392,7 +392,7 @@ export default function POS() {
           </div>
         </div>
 
-        {/* WORKFLOW CLUSTER (Unified Layout Context Box) */}
+        {/* WORKFLOW CLUSTER (Fixed Configurations Area) */}
         <div className="p-3 border-b border-stone-100 bg-white flex-shrink-0 space-y-2.5">
           {/* Channel Selector */}
           <div className="grid grid-cols-3 gap-1 bg-stone-100 p-1 rounded-xl border border-stone-200/40">
@@ -548,8 +548,8 @@ export default function POS() {
           </div>
         </div>
 
-        {/* TICKET BUCKET LIST (Max height optimizations) */}
-        <div className="flex-1 px-3 py-2 space-y-1.5 bg-stone-50/40 overflow-y-auto">
+        {/* TICKET BUCKET LIST (Strictly Scrollable Cart List) */}
+        <div className="flex-1 px-3 py-2 space-y-1.5 bg-stone-50/40 overflow-y-auto min-h-0">
           {cart.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-6 text-stone-300">
               <div className="w-10 h-10 rounded-full bg-stone-100 flex items-center justify-center mb-1.5">
@@ -596,7 +596,7 @@ export default function POS() {
           )}
         </div>
 
-        {/* SECURE TERMINAL CHECKOUT BAR */}
+        {/* SECURE TERMINAL CHECKOUT BAR (Fixed Bottom Section) */}
         <div className="p-3 border-t border-stone-200 bg-white space-y-2.5 flex-shrink-0">
           <div className="bg-stone-50 rounded-xl p-2.5 border border-stone-200/40 space-y-1 text-[11px] font-bold text-stone-500">
             <div className="flex justify-between">

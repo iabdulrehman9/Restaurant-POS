@@ -2,17 +2,13 @@ import {
   DollarSign,
   Wallet,
   TrendingUp,
-  TrendingDown,
   BarChart3,
   CalendarDays,
   Percent,
-  ArrowUpRight,
-  ArrowDownRight,
   Zap
 } from "lucide-react";
 
 export default function Dashboard() {
-  // Master Data Store Object
   const dashboardData = {
     todaySales: 24500,
     todayExpenses: 6200,
@@ -20,194 +16,179 @@ export default function Dashboard() {
     monthlyExpenses: 120000,
   };
 
-  // Derived Financial Computations 
   const netProfit = dashboardData.todaySales - dashboardData.todayExpenses;
   const monthlyProfit = dashboardData.monthlyRevenue - dashboardData.monthlyExpenses;
 
-  // Efficiency margins (Profit / Revenue ratio)
   const dailyMargin = ((netProfit / dashboardData.todaySales) * 100).toFixed(0);
   const monthlyMargin = ((monthlyProfit / dashboardData.monthlyRevenue) * 100).toFixed(0);
 
   return (
-    <div className="space-y-10 max-w-[1400px] mx-auto p-2">
+    <div className="h-screen w-full bg-neutral-50 p-4 md:p-6 flex flex-col overflow-hidden text-neutral-800 antialiased font-sans">
       
-      {/* GRAPHIC TOP HEADER SECTION */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-neutral-900 via-neutral-950 to-stone-900 p-6 md:p-8 shadow-xl shadow-neutral-950/20 border border-neutral-800/40">
-        {/* Subtle Ambient Backlight Glows */}
-        <div className="absolute top-0 right-1/4 w-72 h-72 bg-orange-500/10 rounded-full blur-[100px] pointer-events-none" />
-        <div className="absolute bottom-0 right-10 w-48 h-48 bg-amber-500/10 rounded-full blur-[80px] pointer-events-none" />
+      {/* FIXED TOP HEADER SECTION */}
+      <div className="bg-neutral-950 rounded-2xl p-5 mb-5 shrink-0 border border-neutral-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shadow-sm">
+        <div>
+          <div className="inline-flex items-center gap-1 bg-neutral-800 px-2 py-0.5 rounded-full text-[10px] font-bold text-orange-400 uppercase tracking-wider mb-1.5">
+            <Zap size={10} className="fill-orange-400/20" /> Performance Console
+          </div>
+          <h1 className="text-xl font-black tracking-tight text-white">
+            Financial Overview
+          </h1>
+        </div>
         
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-          <div>
-            <div className="inline-flex items-center gap-1.5 bg-neutral-800/50 border border-neutral-700/30 px-2.5 py-1 rounded-full text-[10px] font-bold text-orange-400 uppercase tracking-widest mb-3">
-              <Zap size={10} className="fill-orange-400/20" /> Performance Console
-            </div>
-            <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white font-sans">
-              Financial Overview
-            </h1>
-            <p className="text-xs md:text-sm text-neutral-400 font-medium mt-1 max-w-xl leading-relaxed">
-              Real-time monitoring panel for BiteFlow POS terminal workspace. Review live floor velocity and macro margins.
-            </p>
+        <div className="self-start sm:self-auto flex items-center gap-2 bg-neutral-900 border border-neutral-800 px-3 py-1.5 rounded-xl text-xs font-bold text-neutral-300">
+          <CalendarDays size={13} className="text-orange-500" />
+          <span>Live Session Active</span>
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+        </div>
+      </div>
+
+      {/* INDEPENDENT SCROLLABLE CONTENT SECTION */}
+      <div className="flex-1 overflow-y-auto pr-1 space-y-6 min-h-0 pb-2">
+        
+        {/* DAILY DECK */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 px-1">
+            <div className="h-3 w-1 bg-orange-500 rounded-full" />
+            <h2 className="text-[11px] font-bold text-neutral-400 tracking-wider uppercase">
+              Today's Floor Operations
+            </h2>
           </div>
           
-          {/* DIGITAL DATE CHIP */}
-          <div className="self-start md:self-auto flex items-center gap-2.5 bg-neutral-900/80 border border-neutral-800 backdrop-blur-md shadow-inner px-4 py-2.5 rounded-2xl text-xs font-bold text-neutral-300">
-            <CalendarDays size={14} className="text-orange-500" />
-            <span>Live Session Active</span>
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shadow-[0_0_8px_#10b981]" />
-          </div>
-        </div>
-      </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Today Sales */}
+            <div className="bg-white rounded-2xl p-5 border border-neutral-200 shadow-sm flex flex-col justify-between">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Gross Income</p>
+                  <h3 className="text-2xl font-black text-neutral-900 tracking-tight mt-1 flex items-baseline">
+                    <span className="text-xs font-bold text-neutral-400 mr-1 font-mono">RS</span>
+                    {dashboardData.todaySales.toLocaleString()}
+                  </h3>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 shrink-0">
+                  <DollarSign size={18} />
+                </div>
+              </div>
+              <div className="mt-4 text-[10px] font-bold text-emerald-600 bg-emerald-50 border border-emerald-100 w-fit px-2 py-0.5 rounded-md">
+                +12.4% vs yesterday
+              </div>
+            </div>
 
-      {/* STRATEGIC CONTEXT ROW: THE DAILY OPERATIONAL DECK */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-2 px-1">
-          <div className="h-4 w-1 bg-gradient-to-b from-orange-500 to-amber-500 rounded-full" />
-          <h2 className="text-xs font-bold text-neutral-400 tracking-widest uppercase">
-            Today's Floor Operations
-          </h2>
-        </div>
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Card 1: Today Sales */}
-          <div className="bg-white rounded-3xl p-6 border border-neutral-200/50 shadow-sm hover:shadow-xl hover:shadow-neutral-100/70 hover:border-neutral-300 transition-all duration-300 flex flex-col justify-between group">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider">Gross Income</p>
-                <h3 className="text-3xl font-black text-neutral-900 tracking-tight mt-2 flex items-baseline">
-                  <span className="text-xs font-bold text-neutral-400 mr-1 font-mono">RS</span>
-                  {dashboardData.todaySales.toLocaleString()}
-                </h3>
+            {/* Today Expenses */}
+            <div className="bg-white rounded-2xl p-5 border border-neutral-200 shadow-sm flex flex-col justify-between">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Payout Outflows</p>
+                  <h3 className="text-2xl font-black text-neutral-900 tracking-tight mt-1 flex items-baseline">
+                    <span className="text-xs font-bold text-neutral-400 mr-1 font-mono">RS</span>
+                    {dashboardData.todayExpenses.toLocaleString()}
+                  </h3>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center border border-rose-100 shrink-0">
+                  <Wallet size={18} />
+                </div>
               </div>
-              <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100 group-hover:scale-110 transition-transform duration-300 shadow-sm shadow-emerald-500/5">
-                <DollarSign size={20} />
+              <div className="mt-4 text-[10px] font-bold text-rose-600 bg-rose-50 border border-rose-100 w-fit px-2 py-0.5 rounded-md">
+                Supplier payouts out
               </div>
             </div>
-            <div className="mt-5 flex items-center gap-1.5 text-[11px] font-bold text-emerald-600 bg-emerald-50/60 border border-emerald-100/50 w-fit px-2 py-0.5 rounded-lg">
-              <ArrowUpRight size={12} strokeWidth={3} />
-              <span>+12.4% vs yesterday</span>
-            </div>
-          </div>
 
-          {/* Card 2: Today Expenses */}
-          <div className="bg-white rounded-3xl p-6 border border-neutral-200/50 shadow-sm hover:shadow-xl hover:shadow-neutral-100/70 hover:border-neutral-300 transition-all duration-300 flex flex-col justify-between group">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider">Payout Outflows</p>
-                <h3 className="text-3xl font-black text-neutral-900 tracking-tight mt-2 flex items-baseline">
-                  <span className="text-xs font-bold text-neutral-400 mr-1 font-mono">RS</span>
-                  {dashboardData.todayExpenses.toLocaleString()}
-                </h3>
+            {/* Today Net Profit */}
+            <div className="bg-gradient-to-br from-orange-500 to-red-600 rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-[10px] font-bold text-orange-100 uppercase tracking-wider opacity-90">Net Daily Yield</p>
+                  <h3 className="text-2xl font-black text-white tracking-tight mt-1 flex items-baseline">
+                    <span className="text-xs font-bold text-orange-200/70 mr-1 font-mono">RS</span>
+                    {netProfit.toLocaleString()}
+                  </h3>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-white/10 text-white flex items-center justify-center border border-white/20 shrink-0">
+                  <TrendingUp size={18} />
+                </div>
               </div>
-              <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center border border-rose-100 group-hover:scale-110 transition-transform duration-300 shadow-sm shadow-rose-500/5">
-                <Wallet size={20} />
+              <div className="mt-4 flex items-center gap-0.5 text-[10px] font-bold text-white bg-black/15 w-fit px-2 py-0.5 rounded-md border border-white/5">
+                <Percent size={9} strokeWidth={3} />
+                <span>{dailyMargin}% Conversion Margin</span>
               </div>
-            </div>
-            <div className="mt-5 flex items-center gap-1.5 text-[11px] font-bold text-rose-600 bg-rose-50/60 border border-rose-100/50 w-fit px-2 py-0.5 rounded-lg">
-              <ArrowDownRight size={12} strokeWidth={3} />
-              <span>Supplier payouts out</span>
-            </div>
-          </div>
-
-          {/* Card 3: Today Net Profit (PREMIUM HIGHLIGHT BOX) */}
-          <div className="bg-gradient-to-br from-orange-500 via-orange-600 to-red-600 rounded-3xl p-6 shadow-xl shadow-orange-500/20 flex flex-col justify-between relative overflow-hidden group">
-            {/* Background geometric design texture */}
-            <div className="absolute right-0 bottom-0 translate-x-4 translate-y-4 text-white/[0.08] pointer-events-none group-hover:scale-105 transition-transform duration-500">
-              <TrendingUp size={160} strokeWidth={1} />
-            </div>
-            
-            <div className="flex items-start justify-between relative z-10">
-              <div>
-                <p className="text-[11px] font-bold text-orange-100 uppercase tracking-wider opacity-90">Net Daily Yield</p>
-                <h3 className="text-3xl font-black text-white tracking-tight mt-2 flex items-baseline">
-                  <span className="text-xs font-bold text-orange-200/70 mr-1 font-mono">RS</span>
-                  {netProfit.toLocaleString()}
-                </h3>
-              </div>
-              <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur-md text-white flex items-center justify-center border border-white/20 shadow-inner">
-                <TrendingUp size={20} />
-              </div>
-            </div>
-            
-            <div className="mt-5 flex items-center gap-1 text-[11px] font-bold text-white bg-black/15 backdrop-blur-sm w-fit px-2.5 py-0.5 rounded-lg relative z-10 border border-white/5">
-              <Percent size={10} strokeWidth={3} />
-              <span>{dailyMargin}% Conversion Margin</span>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* STRATEGIC CONTEXT ROW: MONTHLY PERFORMANCE DECK */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-2 px-1">
-          <div className="h-4 w-1 bg-gradient-to-b from-purple-500 to-indigo-500 rounded-full" />
-          <h2 className="text-xs font-bold text-neutral-400 tracking-widest uppercase">
-            Monthly Performance Calendar
-          </h2>
+        {/* MONTHLY DECK */}
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 px-1">
+            <div className="h-3 w-1 bg-purple-500 rounded-full" />
+            <h2 className="text-[11px] font-bold text-neutral-400 tracking-wider uppercase">
+              Monthly Performance
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Monthly Revenue */}
+            <div className="bg-white rounded-2xl p-5 border border-neutral-200 shadow-sm flex flex-col justify-between">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Accumulated Revenue</p>
+                  <h3 className="text-2xl font-black text-neutral-900 tracking-tight mt-1 flex items-baseline">
+                    <span className="text-xs font-bold text-neutral-400 mr-1 font-mono">RS</span>
+                    {dashboardData.monthlyRevenue.toLocaleString()}
+                  </h3>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100 shrink-0">
+                  <BarChart3 size={18} />
+                </div>
+              </div>
+              <div className="mt-4 flex items-center gap-2 text-[10px] font-medium text-neutral-400">
+                <div className="w-full bg-neutral-100 h-1.5 rounded-full overflow-hidden">
+                  <div className="bg-purple-500 h-full w-[84%] rounded-full" />
+                </div>
+                <span className="font-bold text-neutral-700 min-w-fit">84% Target</span>
+              </div>
+            </div>
+
+            {/* Monthly Expenses */}
+            <div className="bg-white rounded-2xl p-5 border border-neutral-200 shadow-sm flex flex-col justify-between">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Operational Costs</p>
+                  <h3 className="text-2xl font-black text-neutral-900 tracking-tight mt-1 flex items-baseline">
+                    <span className="text-xs font-bold text-neutral-400 mr-1 font-mono">RS</span>
+                    {dashboardData.monthlyExpenses.toLocaleString()}
+                  </h3>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100 shrink-0">
+                  <Wallet size={18} />
+                </div>
+              </div>
+              <p className="mt-4 text-[10px] font-semibold text-neutral-400 tracking-wide">
+                Includes inventory, rent & wages
+              </p>
+            </div>
+
+            {/* Monthly Net Profit */}
+            <div className="bg-white rounded-2xl p-5 border border-neutral-200 shadow-sm flex flex-col justify-between">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Retained Profit</p>
+                  <h3 className="text-2xl font-black text-neutral-900 tracking-tight mt-1 flex items-baseline">
+                    <span className="text-xs font-bold text-neutral-400 mr-1 font-mono">RS</span>
+                    {monthlyProfit.toLocaleString()}
+                  </h3>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100 shrink-0">
+                  <DollarSign size={18} />
+                </div>
+              </div>
+              <div className="mt-4 flex items-center gap-0.5 text-[10px] font-bold text-indigo-600 bg-indigo-50 border border-indigo-100 w-fit px-2 py-0.5 rounded-md">
+                <Percent size={9} strokeWidth={3} />
+                <span>{monthlyMargin}% Retention Rate</span>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {/* Card 4: Monthly Revenue */}
-          <div className="bg-white rounded-3xl p-6 border border-neutral-200/50 shadow-sm hover:shadow-xl hover:shadow-neutral-100/70 hover:border-neutral-300 transition-all duration-300 flex flex-col justify-between group">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider">Accumulated Revenue</p>
-                <h3 className="text-3xl font-black text-neutral-900 tracking-tight mt-2 flex items-baseline">
-                  <span className="text-xs font-bold text-neutral-400 mr-1 font-mono">RS</span>
-                  {dashboardData.monthlyRevenue.toLocaleString()}
-                </h3>
-              </div>
-              <div className="w-12 h-12 rounded-2xl bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100 group-hover:scale-110 transition-transform duration-300">
-                <BarChart3 size={20} />
-              </div>
-            </div>
-            <div className="mt-5 text-[11px] font-medium text-neutral-400 flex items-center gap-2">
-              <div className="w-full bg-neutral-100 h-1.5 rounded-full overflow-hidden">
-                <div className="bg-purple-500 h-full w-[84%] rounded-full" />
-              </div>
-              <span className="font-bold text-neutral-700 min-w-fit">84% Target</span>
-            </div>
-          </div>
-
-          {/* Card 5: Monthly Expenses */}
-          <div className="bg-white rounded-3xl p-6 border border-neutral-200/50 shadow-sm hover:shadow-xl hover:shadow-neutral-100/70 hover:border-neutral-300 transition-all duration-300 flex flex-col justify-between group">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider">Operational Costs</p>
-                <h3 className="text-3xl font-black text-neutral-900 tracking-tight mt-2 flex items-baseline">
-                  <span className="text-xs font-bold text-neutral-400 mr-1 font-mono">RS</span>
-                  {dashboardData.monthlyExpenses.toLocaleString()}
-                </h3>
-              </div>
-              <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100 group-hover:scale-110 transition-transform duration-300">
-                <TrendingDown size={20} />
-              </div>
-            </div>
-            <p className="mt-5 text-[11px] font-semibold text-neutral-400 tracking-wide">
-              Includes inventory, rent & employee wages
-            </p>
-          </div>
-
-          {/* Card 6: Monthly Net Profit */}
-          <div className="bg-white rounded-3xl p-6 border border-neutral-200/50 shadow-sm hover:shadow-xl hover:shadow-neutral-100/70 hover:border-neutral-300 transition-all duration-300 flex flex-col justify-between group">
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider">Retained Profit</p>
-                <h3 className="text-3xl font-black text-neutral-900 tracking-tight mt-2 flex items-baseline">
-                  <span className="text-xs font-bold text-neutral-400 mr-1 font-mono">RS</span>
-                  {monthlyProfit.toLocaleString()}
-                </h3>
-              </div>
-              <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center border border-indigo-100 group-hover:scale-110 transition-transform duration-300">
-                <DollarSign size={20} />
-              </div>
-            </div>
-            <div className="mt-5 flex items-center gap-1.5 text-[11px] font-bold text-indigo-600 bg-indigo-50/60 border border-indigo-100/50 w-fit px-2 py-0.5 rounded-lg">
-              <Percent size={10} strokeWidth={3} />
-              <span>{monthlyMargin}% Conversion Retention Rate</span>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

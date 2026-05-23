@@ -5,25 +5,37 @@ import {
   TrendingDown, 
   Calendar,
   Flame,
-  ArrowDownRight,
   FileText,
-  Printer
+  Printer,
+  Receipt,
+  Percent,
+  ChevronLeft,
+  ChevronRight,
+  Briefcase
 } from "lucide-react";
 
 export default function Reports() {
   const [tab, setTab] = useState("sales");
 
-  /* ---------------- MOCK DATA SCHEMAS ---------------- */
+  // Simple Pagination Controls (5 items per page)
+  const [salesPage, setSalesPage] = useState(1);
+  const [expensesPage, setExpensesPage] = useState(1);
+  const [productsPage, setProductsPage] = useState(1);
+  
+  const itemsPerPage = 5;
+
+  /* ---------------- DATA SAMPLES ---------------- */
   const sales = [
-    { date: "2026-05-01", total: 5000 },
-    { date: "2026-05-02", total: 7000 },
-    { date: "2026-05-03", total: 6500 },
+    { date: "2026-05-01", ordersCount: 14, subtotal: 5000, tax: 250, total: 5250 },
+    { date: "2026-05-02", ordersCount: 22, subtotal: 7000, tax: 350, total: 7350 },
+    { date: "2026-05-03", ordersCount: 19, subtotal: 6500, tax: 325, total: 6825 },
   ];
 
   const expenses = [
-    { date: "2026-05-01", total: 2000 },
-    { date: "2026-05-02", total: 1500 },
-    { date: "2026-05-03", total: 1800 },
+    { id: "EXP-101", date: "2026-05-01", category: "Stock & Ingredients", description: "Chicken & Fresh Buns Restock", total: 2000 },
+    { id: "EXP-102", date: "2026-05-02", category: "Bills & Utilities", description: "Gas Cylinder Refill", total: 1500 },
+    { id: "EXP-103", date: "2026-05-03", category: "Staff Salaries", description: "Daily Wage Staff Payout", total: 1800 },
+    { id: "EXP-104", date: "2026-05-03", category: "Marketing & Ads", description: "Flyer Printing & Social Boost", total: 1200 },
   ];
 
   const products = [
@@ -33,25 +45,53 @@ export default function Reports() {
     { name: "Pizza", sold: 40, revenue: 48000 },
   ];
 
-  /* ---------------- CORE DATA INSIGHTS ---------------- */
-  // FIXED: Added appropriate state dependencies to ensure calculations re-run if arrays change
-  const totalSales = useMemo(() => sales.reduce((s, i) => s + i.total, 0), [sales]);
-  const totalExpenses = useMemo(() => expenses.reduce((s, i) => s + i.total, 0), [expenses]);
-  const netProfit = totalSales - totalExpenses;
+  /* ---------------- CALCULATIONS ---------------- */
+  const financialSummary = useMemo(() => {
+    const totalSalesBeforeTax = sales.reduce((sum, item) => sum + item.subtotal, 0);
+    const totalTaxCollected = sales.reduce((sum, item) => sum + item.tax, 0);
+    const totalFinalSales = sales.reduce((sum, item) => sum + item.total, 0);
+    const totalOrdersCount = sales.reduce((sum, item) => sum + item.ordersCount, 0);
+    const totalExpensesCost = expenses.reduce((sum, item) => sum + item.total, 0);
+    
+    const takeHomeProfit = totalSalesBeforeTax - totalExpensesCost;
+    const averageBillValue = totalOrdersCount > 0 ? totalFinalSales / totalOrdersCount : 0;
 
-  const topProducts = useMemo(() => [...products].sort((a, b) => b.sold - a.sold), [products]);
-  const lowProducts = useMemo(() => [...products].sort((a, b) => a.sold - b.sold), [products]);
+    return {
+      totalSalesBeforeTax,
+      totalTaxCollected,
+      totalFinalSales,
+      totalOrdersCount,
+      totalExpensesCost,
+      takeHomeProfit,
+      averageBillValue
+    };
+  }, [sales, expenses]);
 
-  /* ---------------- RELIABLE PRINT/PDF ENGINE ---------------- */
-  const handlePrintOrPDF = () => {
-    window.print();
-  };
+  const sortedProducts = useMemo(() => [...products].sort((a, b) => b.sold - a.sold), [products]);
+
+  /* ---------------- PAGINATION SPLITTING ---------------- */
+  const paginatedSales = useMemo(() => {
+    const start = (salesPage - 1) * itemsPerPage;
+    return sales.slice(start, start + itemsPerPage);
+  }, [sales, salesPage]);
+
+  const paginatedExpenses = useMemo(() => {
+    const start = (expensesPage - 1) * itemsPerPage;
+    return expenses.slice(start, start + itemsPerPage);
+  }, [expenses, expensesPage]);
+
+  const paginatedProducts = useMemo(() => {
+    const start = (productsPage - 1) * itemsPerPage;
+    return sortedProducts.slice(start, start + itemsPerPage);
+  }, [sortedProducts, productsPage]);
+
+  const salesMaxPages = Math.ceil(sales.length / itemsPerPage) || 1;
+  const expensesMaxPages = Math.ceil(expenses.length / itemsPerPage) || 1;
+  const productsMaxPages = Math.ceil(sortedProducts.length / itemsPerPage) || 1;
 
   return (
-    <div className="max-w-[1500px] mx-auto p-4 md:p-8 space-y-8 bg-neutral-50/40 min-h-screen antialiased">
+    <div className="max-w-[1600px] mx-auto p-5 space-y-5 bg-orange-50/30 h-screen flex flex-col overflow-hidden antialiased text-neutral-800">
       
-      {/* FORCE BROWSER TO UNDERSTAND COLOR PRINTING & LAYOUT FORCING */}
-      {/* FIXED: Corrected 'grid-template-cols' to standard native 'grid-template-columns' */}
       <style dangerouslySetInnerHTML={{__html: `
         @media print {
           body { 
@@ -62,140 +102,156 @@ export default function Reports() {
           }
           .no-print { display: none !important; }
           .print-container { padding: 0 !important; margin: 0 !important; width: 100% !important; }
-          .print-force-visible { display: block !important; visibility: visible !important; }
-          .print-grid { display: grid !important; grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 16px !important; }
         }
       `}} />
 
-      {/* MODULE MAIN BRANDING CONTROL HEADER BAR */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-2 print-container">
+      {/* HEADER SECTION */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-orange-100 print-container shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-neutral-900 text-white flex items-center justify-center shadow-md shadow-neutral-900/10 no-print">
-            <BarChart3 size={22} />
+          <div className="w-11 h-11 rounded-xl bg-orange-500 text-white flex items-center justify-center shadow-sm shadow-orange-500/20 no-print">
+            <BarChart3 size={20} />
           </div>
           <div>
-            <h1 className="text-xl font-black text-neutral-900 tracking-tight">Reports & Performance Hub</h1>
-            <p className="text-xs font-semibold text-neutral-400 uppercase tracking-wider">Enterprise Analytics Engine</p>
+            <h1 className="text-xl font-bold tracking-tight text-neutral-900">Business Dashboard</h1>
+            <p className="text-xs font-medium text-neutral-500">Real-time overview of sales performance & expenses</p>
           </div>
         </div>
 
-        {/* LIFTED UTILITY EXPORT GROUP */}
-        <div className="flex flex-wrap items-center gap-2 no-print">
+        <div className="flex items-center gap-2 no-print">
           <button
-            onClick={handlePrintOrPDF}
-            className="bg-white hover:bg-neutral-50 text-neutral-700 font-bold px-3.5 py-2 rounded-xl text-xs border border-neutral-200 shadow-sm flex items-center gap-1.5 transition-all active:scale-[0.98]"
+            onClick={() => window.print()}
+            className="bg-white hover:bg-neutral-50 text-neutral-700 font-semibold px-4 py-2 rounded-xl text-xs border border-neutral-200 shadow-sm flex items-center gap-2 transition-all active:scale-95"
           >
-            <FileText size={14} className="text-rose-500" />
-            <span>Export PDF</span>
+            <FileText size={14} className="text-orange-500" />
+            <span>Save PDF</span>
           </button>
           <button
-            onClick={handlePrintOrPDF}
-            className="bg-neutral-900 hover:bg-neutral-950 text-white font-bold px-4 py-2 rounded-xl text-xs shadow-sm flex items-center gap-1.5 transition-all active:scale-[0.98]"
+            onClick={() => window.print()}
+            className="bg-orange-500 hover:bg-orange-600 text-white font-semibold px-4 py-2 rounded-xl text-xs shadow-sm shadow-orange-500/10 flex items-center gap-2 transition-all active:scale-95"
           >
             <Printer size={14} />
-            <span>Print Manifest</span>
+            <span>Print Report</span>
           </button>
         </div>
       </div>
 
-      {/* CORE PERFORMANCE SUMMARY METRIC CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 print-container">
+      {/* FINANCIAL OVERVIEW CARDS */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 print-container shrink-0">
         
-        {/* TOTAL SALES VOLUME */}
-        <div className="bg-white border border-neutral-200 rounded-3xl p-5 shadow-sm">
-          <div className="flex justify-between items-start">
-            <span className="text-[11px] font-black text-neutral-400 uppercase tracking-wider block">Gross Receivables</span>
-            <span className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xs font-bold no-print">
-              <TrendingUp size={14} />
-            </span>
-          </div>
-          <div className="mt-4 space-y-1">
-            <p className="text-xs font-bold text-neutral-500">To Date Sales</p>
-            <h2 className="text-2xl font-black text-neutral-900 font-mono tracking-tight flex items-baseline">
-              <span className="text-xs font-bold text-neutral-400 mr-0.5">RS</span>
-              {totalSales.toLocaleString()}
+        {/* TOTAL SALES */}
+        <div className="bg-white border border-orange-100 rounded-2xl p-5 shadow-sm shadow-orange-500/[0.02] flex items-center justify-between">
+          <div className="space-y-1">
+            <span className="text-xs font-semibold text-neutral-400 tracking-wider block uppercase">Total Gross Sales</span>
+            <h2 className="text-2xl font-bold text-neutral-900 font-mono tracking-tight">
+              <span className="text-sm font-semibold text-neutral-400 mr-1">RS</span>
+              {financialSummary.totalFinalSales.toLocaleString()}
             </h2>
+            <span className="text-[11px] text-neutral-500 block">Excl. Tax: RS {financialSummary.totalSalesBeforeTax.toLocaleString()}</span>
           </div>
+          <span className="w-9 h-9 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center no-print">
+            <TrendingUp size={16} />
+          </span>
         </div>
 
-        {/* COMPREHENSIVE OUTFLOW METRIC */}
-        <div className="bg-white border border-neutral-200 rounded-3xl p-5 shadow-sm">
-          <div className="flex justify-between items-start">
-            <span className="text-[11px] font-black text-neutral-400 uppercase tracking-wider block">Operating Expenses</span>
-            <span className="w-8 h-8 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center text-xs font-bold no-print">
-              <TrendingDown size={14} />
-            </span>
-          </div>
-          <div className="mt-4 space-y-1">
-            <p className="text-xs font-bold text-neutral-500">Total Expenses</p>
-            <h2 className="text-2xl font-black text-neutral-900 font-mono tracking-tight flex items-baseline">
-              <span className="text-xs font-bold text-neutral-400 mr-0.5">RS</span>
-              {totalExpenses.toLocaleString()}
+        {/* TOTAL EXPENSES */}
+        <div className="bg-white border border-orange-100 rounded-2xl p-5 shadow-sm shadow-orange-500/[0.02] flex items-center justify-between">
+          <div className="space-y-1">
+            <span className="text-xs font-semibold text-neutral-400 tracking-wider block uppercase">Total Expenses</span>
+            <h2 className="text-2xl font-bold text-neutral-900 font-mono tracking-tight">
+              <span className="text-sm font-semibold text-neutral-400 mr-1">RS</span>
+              {financialSummary.totalExpensesCost.toLocaleString()}
             </h2>
+            <span className="text-[11px] text-neutral-500 block">All outgoing payments</span>
           </div>
+          <span className="w-9 h-9 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center no-print">
+            <TrendingDown size={16} />
+          </span>
         </div>
 
-        {/* NET PROFIT CARD */}
-        <div className="bg-neutral-900 text-white rounded-3xl p-5 shadow-md border border-neutral-800">
-          <div className="flex justify-between items-start">
-            <span className="text-[11px] font-black text-neutral-400 uppercase tracking-wider block">Net Capital Gain</span>
-            <span className="bg-white/10 text-emerald-400 text-[10px] font-extrabold px-2 py-0.5 rounded-md no-print">
-              +{totalSales > 0 ? ((netProfit / totalSales) * 100).toFixed(1) : "0.0"}% Yield
-            </span>
-          </div>
-          <div className="mt-4 space-y-1">
-            <p className="text-xs font-bold text-neutral-300">Net Retained Profit</p>
-            <h2 className="text-2xl font-black text-emerald-400 font-mono tracking-tight flex items-baseline">
-              <span className="text-xs font-bold text-emerald-500/80 mr-0.5">RS</span>
-              {netProfit.toLocaleString()}
+        {/* NET PROFIT */}
+        <div className="bg-orange-500 text-white rounded-2xl p-5 shadow-md shadow-orange-500/10 flex items-center justify-between">
+          <div className="space-y-1">
+            <span className="text-xs font-semibold text-orange-100 tracking-wider block uppercase">Net Earnings</span>
+            <h2 className="text-2xl font-bold font-mono tracking-tight">
+              <span className="text-sm font-semibold text-orange-200 mr-1">RS</span>
+              {financialSummary.takeHomeProfit.toLocaleString()}
             </h2>
+            <span className="text-[11px] text-orange-100 block">Avg. Ticket: RS {financialSummary.averageBillValue.toFixed(0)}</span>
           </div>
+          <span className="w-9 h-9 rounded-xl bg-white/10 text-white flex items-center justify-center no-print">
+            <Receipt size={16} />
+          </span>
         </div>
 
       </div>
 
-      {/* INTERACTIVE NAVIGATION CONTROL BUTTONS */}
-      <div className="space-y-6 print-container">
-        <div className="flex border-b border-neutral-200 pb-px no-print">
-          <div className="flex gap-1 bg-neutral-200/60 p-1 rounded-xl">
-            {["sales", "expenses", "products"].map((t) => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={`px-4 py-1.5 rounded-lg text-xs font-bold tracking-wide uppercase transition-all duration-150 ${
-                  tab === t
-                    ? "bg-white text-neutral-900 shadow-sm"
-                    : "text-neutral-500 hover:text-neutral-900"
-                }`}
-              >
-                {t} Segment
-              </button>
-            ))}
+      {/* QUICK METRICS BAR */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 print-container shrink-0">
+        <div className="bg-white border border-neutral-200/60 rounded-xl p-3 flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-orange-50 text-orange-500 flex items-center justify-center shrink-0"><Receipt size={16} /></div>
+          <div>
+            <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider block">Volume</span>
+            <p className="text-sm font-bold text-neutral-800">{financialSummary.totalOrdersCount} Completed Orders</p>
           </div>
         </div>
-
-        {/* DATA LEDGER GROUPS */}
         
-        {/* REVENUE SALES TABLES */}
-        <div className={`bg-white border border-neutral-200 rounded-3xl p-6 shadow-sm space-y-4 ${tab === "sales" ? "block" : "hidden print:block"}`}>
-          <h2 className="text-xs font-black text-neutral-400 uppercase tracking-widest flex items-center gap-2">
-            <Calendar size={12} className="text-neutral-400 no-print" />
-            <span>Sales Report Ledger</span>
-          </h2> 
+      </div>
 
-          <div className="overflow-hidden border border-neutral-200 rounded-2xl">
-            <table className="w-full text-left text-xs font-medium text-neutral-600">
-              <thead className="bg-neutral-50 border-b border-neutral-200 text-[10px] font-black text-neutral-400 uppercase tracking-wider">
+      {/* TAB NAVIGATION SECTION */}
+      <div className="flex border-b border-neutral-200/80 no-print shrink-0">
+        <div className="flex gap-1 bg-neutral-200/50 p-1 rounded-xl">
+          {[
+            { id: "sales", name: "Sales Logs" },
+            { id: "expenses", name: "Expense Logs" },
+            { id: "products", name: "Item Performance" }
+          ].map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              className={`px-4 py-2 rounded-lg text-xs font-semibold tracking-wide transition-all ${
+                tab === t.id
+                  ? "bg-white text-orange-600 shadow-sm"
+                  : "text-neutral-500 hover:text-neutral-900"
+              }`}
+            >
+              {t.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* INDEPENDENT INTERNAL SCROLL REGION */}
+      <div className="flex-1 overflow-y-auto min-h-0 pr-1 pb-4 print-container">
+        
+        {/* TAB 1: SALES TABLE */}
+        <div className={`bg-white border border-neutral-200 rounded-2xl p-5 shadow-sm space-y-4 ${tab === "sales" ? "block" : "hidden print:block"}`}>
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-bold text-neutral-400 uppercase tracking-widest flex items-center gap-2">
+              <Calendar size={14} className="text-orange-500 no-print" />
+              <span>Daily Performance Sheet</span>
+            </h2> 
+          </div>
+
+          <div className="overflow-x-auto border border-neutral-100 rounded-xl">
+            <table className="w-full text-left text-xs text-neutral-600 min-w-[600px]">
+              <thead className="bg-neutral-50 text-[10px] font-bold text-neutral-400 uppercase tracking-wider border-b border-neutral-100">
                 <tr>
-                  <th className="p-4">Transaction Cycle Date</th>
-                  <th className="p-4 text-right">Settled Aggregates</th>
+                  <th className="p-3.5">Date Date</th>
+                  <th className="p-3.5 text-center">Orders Count</th>
+                  <th className="p-3.5 text-right">Net Sales</th>
+                  <th className="p-3.5 text-right">Tax Value</th>
+                  <th className="p-3.5 text-right">Gross Total</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-neutral-200">
-                {sales.map((s, i) => (
-                  <tr key={i} className="hover:bg-neutral-50/40 transition-colors">
-                    <td className="p-4 font-bold text-neutral-800">{s.date}</td>
-                    <td className="p-4 text-right font-bold font-mono text-emerald-600 text-sm">
+              <tbody className="divide-y divide-neutral-100 font-mono text-xs">
+                {paginatedSales.map((s, i) => (
+                  <tr key={i} className="hover:bg-neutral-50/50 transition-colors">
+                    <td className="p-3.5 font-semibold font-sans text-neutral-800">{s.date}</td>
+                    <td className="p-3.5 text-center font-bold text-neutral-700">{s.ordersCount}</td>
+                    <td className="p-3.5 text-right text-neutral-700">RS {s.subtotal.toLocaleString()}</td>
+                    <td className="p-3.5 text-right text-orange-600">RS {s.tax}</td>
+                    <td className="p-3.5 text-right font-bold text-neutral-900">
                       RS {s.total.toLocaleString()}
                     </td>
                   </tr>
@@ -203,57 +259,110 @@ export default function Reports() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination */}
+          <div className="flex items-center justify-between pt-1 no-print">
+            <span className="text-[11px] text-neutral-400 font-medium">Showing page {salesPage} of {salesMaxPages}</span>
+            <div className="flex gap-1.5">
+              <button 
+                type="button"
+                disabled={salesPage === 1}
+                onClick={() => setSalesPage(p => p - 1)}
+                className="p-1.5 border border-neutral-200 rounded-lg bg-white hover:bg-neutral-50 disabled:opacity-40 transition-colors"
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <button 
+                type="button"
+                disabled={salesPage === salesMaxPages}
+                onClick={() => setSalesPage(p => p + 1)}
+                className="p-1.5 border border-neutral-200 rounded-lg bg-white hover:bg-neutral-50 disabled:opacity-40 transition-colors"
+              >
+                <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* OPERATIONAL MATRIX EXPENSES */}
-        <div className={`bg-white border border-neutral-200 rounded-3xl p-6 shadow-sm space-y-4 ${tab === "expenses" ? "block" : "hidden print:block"}`}>
-          <h2 className="text-xs font-black text-neutral-400 uppercase tracking-widest flex items-center gap-2">
-            <ArrowDownRight size={14} className="text-neutral-400 no-print" />
-            <span>Expense Report Ledger</span>
-          </h2> 
-
-          <div className="overflow-hidden border border-neutral-200 rounded-2xl">
-            <table className="w-full text-left text-xs font-medium text-neutral-600">
-              <thead className="bg-neutral-50 border-b border-neutral-200 text-[10px] font-black text-neutral-400 uppercase tracking-wider">
-                <tr>
-                  <th className="p-4">Execution Timestamp Date</th>
-                  <th className="p-4 text-right">Debited Statement Total</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-200">
-                {expenses.map((e, i) => (
-                  <tr key={i} className="hover:bg-neutral-50/40 transition-colors">
-                    <td className="p-4 font-bold text-neutral-800">{e.date}</td>
-                    <td className="p-4 text-right font-bold font-mono text-rose-600 text-sm">
-                      RS {e.total.toLocaleString()}
-                    </td>
+        {/* TAB 2: EXPENSES TABLE */}
+        <div className={`bg-white border border-neutral-200 rounded-2xl p-5 shadow-sm space-y-4 ${tab === "expenses" ? "block" : "hidden print:block"}`}>
+          <div className="space-y-4">
+            <h2 className="text-xs font-bold text-neutral-400 uppercase tracking-widest flex items-center gap-2">
+              <Briefcase size={14} className="text-orange-500 no-print" />
+              <span>Statement of Outgoings</span>
+            </h2> 
+            <div className="overflow-x-auto border border-neutral-100 rounded-xl">
+              <table className="w-full text-left text-xs text-neutral-600 min-w-[600px]">
+                <thead className="bg-neutral-50 text-[10px] font-bold text-neutral-400 uppercase tracking-wider border-b border-neutral-100">
+                  <tr>
+                    <th className="p-3.5">ID / Posting Date</th>
+                    <th className="p-3.5">Category Type</th>
+                    <th className="p-3.5">Payment Details</th>
+                    <th className="p-3.5 text-right">Debit Amount</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-neutral-100 text-xs">
+                  {paginatedExpenses.map((e, i) => (
+                    <tr key={i} className="hover:bg-neutral-50/50 transition-colors">
+                      <td className="p-3.5">
+                        <span className="font-mono block text-neutral-400 font-semibold text-[10px]">{e.id}</span>
+                        <span className="text-neutral-800 font-semibold">{e.date}</span>
+                      </td>
+                      <td className="p-3.5 font-bold text-neutral-700">{e.category}</td>
+                      <td className="p-3.5 text-neutral-500 font-medium">{e.description}</td>
+                      <td className="p-3.5 text-right font-bold font-mono text-neutral-900">
+                        RS {e.total.toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between pt-1 no-print">
+            <span className="text-[11px] text-neutral-400 font-medium">Showing page {expensesPage} of {expensesMaxPages}</span>
+            <div className="flex gap-1.5">
+              <button 
+                type="button"
+                disabled={expensesPage === 1}
+                onClick={() => setExpensesPage(p => p - 1)}
+                className="p-1.5 border border-neutral-200 rounded-lg bg-white hover:bg-neutral-50 disabled:opacity-40 transition-colors"
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <button 
+                type="button"
+                disabled={expensesPage === expensesMaxPages}
+                onClick={() => setExpensesPage(p => p + 1)}
+                className="p-1.5 border border-neutral-200 rounded-lg bg-white hover:bg-neutral-50 disabled:opacity-40 transition-colors"
+              >
+                <ChevronRight size={14} />
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* PRODUCT INVENTORY MATRICES */}
-        <div className={`grid grid-cols-1 gap-6 ${tab === "products" ? "block print-grid" : "hidden print:print-grid"}`}>
-          
-          {/* VOLUMETRIC METRIC VELOCITY LEADERS */}
-          <div className="bg-white border border-neutral-200 rounded-3xl p-6 shadow-sm space-y-4">
-            <h2 className="text-xs font-black text-neutral-400 uppercase tracking-widest flex items-center gap-1.5">
+        {/* TAB 3: PRODUCT METRICS */}
+        <div className={`bg-white border border-neutral-200 rounded-2xl p-5 shadow-sm flex flex-col justify-between space-y-4 ${tab === "products" ? "block" : "hidden print:block"}`}>
+          <div className="space-y-4">
+            <h2 className="text-xs font-bold text-neutral-400 uppercase tracking-widest flex items-center gap-2">
               <Flame size={14} className="text-orange-500 no-print" />
-              <span>Top Performing Products</span>
+              <span>Volume Breakdown by Product</span>
             </h2> 
 
-            <div className="divide-y divide-neutral-200 border border-neutral-200 rounded-2xl overflow-hidden">
-              {topProducts.map((p, i) => (
-                <div key={i} className="p-4 flex items-center justify-between gap-4 bg-white">
+            <div className="divide-y divide-neutral-100 border border-neutral-100 rounded-xl overflow-hidden">
+              {paginatedProducts.map((p, i) => (
+                <div key={i} className="p-4 flex items-center justify-between gap-4 bg-white text-xs hover:bg-neutral-50/30 transition-colors">
                   <div className="space-y-1">
-                    <span className="text-xs font-extrabold text-neutral-900 block">{p.name}</span>
-                    <span className="text-[10px] font-bold text-neutral-400 block font-mono">REV: RS {p.revenue.toLocaleString()}</span>
+                    <span className="font-bold text-neutral-900 block text-sm">{p.name}</span>
+                    <span className="text-[11px] font-medium text-neutral-400 block">
+                      Generated Turnover: <strong className="text-neutral-700 font-mono">RS {p.revenue.toLocaleString()}</strong>
+                    </span>
                   </div>
                   <div className="text-right">
-                    <span className="text-xs font-black text-neutral-900 font-mono bg-neutral-100 px-2.5 py-1 rounded-lg border border-neutral-200/50">
-                      {p.sold} sold
+                    <span className="font-bold text-orange-600 font-mono bg-orange-50 px-3 py-1 text-xs rounded-xl border border-orange-100">
+                      {p.sold} units
                     </span>
                   </div>
                 </div>
@@ -261,30 +370,27 @@ export default function Reports() {
             </div>
           </div>
 
-          {/* PERFORMANCE DEFICIT WARNING MATRIX */}
-          <div className="bg-white border border-neutral-200 rounded-3xl p-6 shadow-sm space-y-4">
-            <h2 className="text-xs font-black text-neutral-400 uppercase tracking-widest flex items-center gap-1.5">
-              <ArrowDownRight size={14} className="text-neutral-400 no-print" />
-              <span>Low Performing Products</span>
-            </h2> 
-
-            <div className="divide-y divide-neutral-200 border border-neutral-200 rounded-2xl overflow-hidden">
-              {lowProducts.map((p, i) => (
-                <div key={i} className="p-4 flex items-center justify-between gap-4 bg-white">
-                  <div className="space-y-1">
-                    <span className="text-xs font-extrabold text-neutral-900 block">{p.name}</span>
-                    <span className="text-[10px] font-bold text-neutral-400 block font-mono">REV: RS {p.revenue.toLocaleString()}</span>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-xs font-black text-neutral-600 font-mono bg-neutral-50 border border-neutral-200 px-2.5 py-1 rounded-lg">
-                      {p.sold} sold
-                    </span>
-                  </div>
-                </div>
-              ))}
+          <div className="flex items-center justify-between pt-1 no-print">
+            <span className="text-[11px] text-neutral-400 font-medium">Showing page {productsPage} of {productsMaxPages}</span>
+            <div className="flex gap-1.5">
+              <button 
+                type="button"
+                disabled={productsPage === 1}
+                onClick={() => setProductsPage(p => p - 1)}
+                className="p-1.5 border border-neutral-200 rounded-lg bg-white hover:bg-neutral-50 disabled:opacity-40 transition-colors"
+              >
+                <ChevronLeft size={14} />
+              </button>
+              <button 
+                type="button"
+                disabled={productsPage === productsMaxPages}
+                onClick={() => setProductsPage(p => p + 1)}
+                className="p-1.5 border border-neutral-200 rounded-lg bg-white hover:bg-neutral-50 disabled:opacity-40 transition-colors"
+              >
+                <ChevronRight size={14} />
+              </button>
             </div>
           </div>
-
         </div>
 
       </div>
