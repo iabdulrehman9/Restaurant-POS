@@ -1,7 +1,11 @@
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext.jsx";
 import { Eye, EyeOff, Lock, Mail, UtensilsCrossed } from "lucide-react";
 
 export default function SignUp() {
+  const navigate = useNavigate();
+  const { login } = useAuth();
   const [form, setForm] = useState({
     email: "",
     password: "",
@@ -26,12 +30,16 @@ export default function SignUp() {
     setIsLoading(true);
     setError("");
 
-    // Simulating instant authorization check
-    setTimeout(() => {
-      setIsLoading(false);
-      alert("System authenticated! Mapping session...");
-      console.log("Authenticated target payload:", form);
-    }, 1000);
+    login(form.email, form.password)
+      .then(() => {
+        navigate("/");
+      })
+      .catch((err) => {
+        setError(err.message || "Login failed");
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
   };
 
   return (

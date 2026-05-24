@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { 
   Plus, 
   Minus, 
@@ -16,36 +16,110 @@ import {
   ChevronRight,
   FileText
 } from "lucide-react";
+import {
+  createOrder,
+  getProducts,
+  getSettings,
+  markOrderKOT,
+  markOrderReceipt,
+  updateOrder
+} from "../api/index.js";
 
-// Mock Product Database
-const products = [
-  { id: 1, name: "Zinger Burger", price: 550, category: "Burgers", image: "https://images.unsplash.com/photo-1606755962773-d324e9a13086" },
-  { id: 2, name: "Chicken Burger", price: 450, category: "Burgers", image: "https://images.unsplash.com/photo-1606757389929-204a5a0c6d8a" },
-  { id: 3, name: "Fries", price: 200, category: "Sides", image: "https://images.unsplash.com/photo-1541592106381-b31e9677c0e5" },
-  { id: 4, name: "Cold Drink", price: 150, category: "Beverages", image: "https://images.unsplash.com/photo-1551024601-bec78aea704b" },
-];
+const POS_STATE_KEY = "pos_state";
 
-const tables = ["T1", "T2", "T3", "T4", "T5"];
+const readStoredState = () => {
+  try {
+    const raw = localStorage.getItem(POS_STATE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch (err) {
+    return null;
+  }
+};
 
 export default function POS() {
   // 1. Essential State Hooks
-  const [mode, setMode] = useState("dine-in"); 
-  const [activeTable, setActiveTable] = useState("T1");
+  const storedState = readStoredState() || {};
+  const [products, setProducts] = useState([]);
+  const [settings, setSettings] = useState({ tax: 5, serviceCharge: 0, tables: 5 });
+  const [mode, setMode] = useState(storedState.mode || "dine-in"); 
+  const [activeTable, setActiveTable] = useState(storedState.activeTable || "T1");
   const [searchTerm, setSearchTerm] = useState("");
   const [activeCategory, setActiveCategory] = useState("All"); 
 
   // Carts for different fulfillment types
-  const [dineInOrders, setDineInOrders] = useState({ T1: [], T2: [], T3: [], T4: [], T5: [] });
-  const [takeawayCart, setTakeawayCart] = useState([]);
-  const [deliveryCart, setDeliveryCart] = useState([]);
+  const [dineInOrders, setDineInOrders] = useState(storedState.dineInOrders || {});
+  const [takeawayCart, setTakeawayCart] = useState(storedState.takeawayCart || []);
+  const [deliveryCart, setDeliveryCart] = useState(storedState.deliveryCart || []);
 
-  const [customer, setCustomer] = useState({ name: "", phone: "", address: "" });
+  const [customer, setCustomer] = useState(
+    storedState.customer || { name: "", phone: "", address: "" }
+  );
   const [validationError, setValidationError] = useState(false);
+  const [orderRefs, setOrderRefs] = useState({
+    dineIn: storedState.orderRefs?.dineIn || {},
+    takeaway: storedState.orderRefs?.takeaway || null,
+    delivery: storedState.orderRefs?.delivery || null,
+  });
+  const apiBase = (import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api").replace(/\/api$/, "");
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const productData = await getProducts({ active: 1 });
+        setProducts(productData.products || []);
+      } catch (err) {
+        setProducts([]);
+      }
+
+      try {
+        const settingsData = await getSettings();
+        setSettings(settingsData.settings || { tax: 5, serviceCharge: 0, tables: 5 });
+      } catch (err) {
+        setSettings((prev) => ({ ...prev }));
+      }
+    };
+
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    const snapshot = {
+      mode,
+      activeTable,
+      dineInOrders,
+      takeawayCart,
+      deliveryCart,
+      customer,
+      orderRefs,
+    };
+    localStorage.setItem(POS_STATE_KEY, JSON.stringify(snapshot));
+  }, [mode, activeTable, dineInOrders, takeawayCart, deliveryCart, customer, orderRefs]);
+
+  const tables = useMemo(() => {
+    const count = Number(settings.tables || 5);
+    return Array.from({ length: count }, (_, idx) => `T${idx + 1}`);
+  }, [settings.tables]);
+
+  useEffect(() => {
+    if (tables.length && !tables.includes(activeTable)) {
+      setActiveTable(tables[0]);
+    }
+  }, [tables, activeTable]);
+
+  useEffect(() => {
+    setDineInOrders((prev) => {
+      const next = { ...prev };
+      tables.forEach((table) => {
+        if (!next[table]) next[table] = [];
+      });
+      return next;
+    });
+  }, [tables]);
 
   // Derive matching categories from item list
   const categories = useMemo(() => {
-    return ["All", ...new Set(products.map(p => p.category))];
-  }, []);
+    return ["All", ...new Set(products.map((p) => p.category))];
+  }, [products]);
 
   // 2. Search & Category Filter Logic
   const filteredProducts = useMemo(() => {
@@ -71,6 +145,26 @@ export default function POS() {
       setTakeawayCart(updatedCart);
     } else if (mode === "delivery") {
       setDeliveryCart(updatedCart);
+    }
+  };
+
+  const getActiveOrderRef = () => {
+    if (mode === "dine-in") return orderRefs.dineIn[activeTable] || null;
+    if (mode === "takeaway") return orderRefs.takeaway;
+    if (mode === "delivery") return orderRefs.delivery;
+    return null;
+  };
+
+  const setActiveOrderRef = (ref) => {
+    if (mode === "dine-in") {
+      setOrderRefs((prev) => ({
+        ...prev,
+        dineIn: { ...prev.dineIn, [activeTable]: ref },
+      }));
+    } else if (mode === "takeaway") {
+      setOrderRefs((prev) => ({ ...prev, takeaway: ref }));
+    } else if (mode === "delivery") {
+      setOrderRefs((prev) => ({ ...prev, delivery: ref }));
     }
   };
 
@@ -107,15 +201,43 @@ export default function POS() {
 
   // 4. Financial Calculations
   const subtotal = useMemo(() => cart.reduce((s, i) => s + i.price * i.qty, 0), [cart]);
-  const tax = subtotal * 0.05;
-  const total = subtotal + tax;
+  const taxRate = Number(settings.tax ?? 5);
+  const serviceChargeRate = Number(settings.serviceCharge ?? 0);
+  const storeName = settings.name || "Restaurant POS";
+  const storeAddress = settings.address || "";
+  const storePhone = settings.phone || "";
+  const footerText = settings.footer || "Thank you for visiting!";
+  const showTax = settings.showTax !== false;
+  const tax = subtotal * (taxRate / 100);
+  const serviceCharge = subtotal * (serviceChargeRate / 100);
+  const total = subtotal + tax + serviceCharge;
 
   const totalDineInItems = Object.values(dineInOrders).flat().reduce((sum, item) => sum + item.qty, 0);
   const totalTakeawayItems = takeawayCart.reduce((sum, item) => sum + item.qty, 0);
   const totalDeliveryItems = deliveryCart.reduce((sum, item) => sum + item.qty, 0);
 
   // Kitchen Order Ticket (KOT) implementation logic
-  const printKOT = () => {
+  const buildOrderPayload = (status, paymentMethod, paidAmount) => ({
+    orderType: mode,
+    status,
+    tableNo: mode === "dine-in" ? activeTable : null,
+    customer: mode === "delivery" ? customer : null,
+    items: cart.map((item) => ({
+      productId: item.id,
+      name: item.name,
+      price: item.price,
+      qty: item.qty,
+    })),
+    paymentMethod,
+    taxRate,
+    serviceChargeRate,
+    discountType: "percentage",
+    discountValue: 0,
+    paidAmount,
+    notes: "",
+  });
+
+  const printKOT = async () => {
     if (cart.length === 0) return;
     if (mode === "delivery" && (!customer.name || !customer.phone || !customer.address)) {
       setValidationError(true);
@@ -123,7 +245,21 @@ export default function POS() {
     }
     setValidationError(false);
 
-    const kotId = "KOT-" + Math.floor(100000 + Math.random() * 900000);
+    let orderRef = getActiveOrderRef();
+
+    try {
+      if (!orderRef) {
+        const created = await createOrder(buildOrderPayload("pending", "unpaid", 0));
+        orderRef = { orderId: created.id, orderNumber: created.orderNumber };
+        setActiveOrderRef(orderRef);
+      }
+
+      await markOrderKOT(orderRef.orderId);
+    } catch (err) {
+      alert(err.message || "Unable to save kitchen ticket.");
+      return;
+    }
+
     const currentDate = new Date().toLocaleString();
 
     const win = window.open("", "_blank", "width=400,height=600");
@@ -133,7 +269,7 @@ export default function POS() {
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Print KOT - ${kotId}</title>
+        <title>Print KOT - ${orderRef.orderNumber}</title>
         <style>
           @page { size: 80mm auto; margin: 0; }
           body { font-family: 'Courier New', Courier, monospace; width: 74mm; margin: 0 auto; padding: 4mm 0; font-size: 14px; color: #000; line-height: 1.4; }
@@ -145,11 +281,12 @@ export default function POS() {
         </style>
       </head>
       <body>
-        <div class="text-center header">KITCHEN TICKET</div>
+        <div class="text-center header">${storeName}</div>
+        <div class="text-center bold" style="font-size: 12px; text-transform: uppercase;">Kitchen Ticket</div>
         <div class="text-center bold" style="font-size: 12px; background: #000; color: #fff; padding: 2px 0; margin-top: 4px;">KITCHEN COPY</div>
         <div class="divider"></div>
         <div><strong>Time:</strong> ${currentDate}</div>
-        <div><strong>KOT ID:</strong> ${kotId}</div>
+        <div><strong>KOT ID:</strong> ${orderRef.orderNumber}</div>
         <div><strong>Type:</strong> ${mode.toUpperCase()}</div>
         ${mode === "dine-in" ? `<div><strong>Table:</strong> ${activeTable}</div>` : ""}
         <div class="divider"></div>
@@ -180,7 +317,7 @@ export default function POS() {
   };
 
   // Receipt printing implementation logic
-  const printReceipt = () => {
+  const printReceipt = async () => {
     if (cart.length === 0) return;
     if (mode === "delivery" && (!customer.name || !customer.phone || !customer.address)) {
       setValidationError(true);
@@ -188,7 +325,28 @@ export default function POS() {
     }
     setValidationError(false);
 
-    const orderId = "ORD-" + Math.floor(100000 + Math.random() * 900000);
+    let orderRef = getActiveOrderRef();
+
+    try {
+      if (!orderRef) {
+        const created = await createOrder(buildOrderPayload("completed", "cash", total));
+        orderRef = { orderId: created.id, orderNumber: created.orderNumber };
+        setActiveOrderRef(orderRef);
+      } else {
+        await updateOrder(orderRef.orderId, {
+          status: "completed",
+          paymentMethod: "cash",
+          paidAmount: total,
+          changeDue: 0,
+        });
+      }
+
+      await markOrderReceipt(orderRef.orderId);
+    } catch (err) {
+      alert(err.message || "Unable to save receipt.");
+      return;
+    }
+
     const currentDate = new Date().toLocaleString();
 
     const win = window.open("", "_blank", "width=400,height=600");
@@ -198,7 +356,7 @@ export default function POS() {
       <!DOCTYPE html>
       <html>
       <head>
-        <title>Print Receipt - ${orderId}</title>
+        <title>Print Receipt - ${orderRef.orderNumber}</title>
         <style>
           @page { size: 80mm auto; margin: 0; }
           body { font-family: 'Courier New', Courier, monospace; width: 74mm; margin: 0 auto; padding: 4mm 0; font-size: 13px; color: #000; line-height: 1.4; }
@@ -215,10 +373,12 @@ export default function POS() {
         </style>
       </head>
       <body>
-        <div class="text-center header">RESTAURANT POS</div>
+        <div class="text-center header">${storeName}</div>
+        ${storeAddress ? `<div class="text-center" style="font-size: 12px;">${storeAddress}</div>` : ""}
+        ${storePhone ? `<div class="text-center" style="font-size: 12px;">${storePhone}</div>` : ""}
         <div class="divider"></div>
         <div><strong>Date:</strong> ${currentDate}</div>
-        <div><strong>Order ID:</strong> ${orderId}</div>
+        <div><strong>Order ID:</strong> ${orderRef.orderNumber}</div>
         <div><strong>Type:</strong> ${mode.toUpperCase()}</div>
         ${mode === "dine-in" ? `<div><strong>Table:</strong> ${activeTable}</div>` : ""}
         <div class="divider"></div>
@@ -242,7 +402,8 @@ export default function POS() {
         <div class="divider"></div>
         <table class="totals-table">
           <tr><td>Subtotal:</td><td class="text-right">Rs ${subtotal}</td></tr>
-          <tr><td>Tax (5%):</td><td class="text-right">Rs ${tax.toFixed(0)}</td></tr>
+          ${showTax ? `<tr><td>Tax (${taxRate}%):</td><td class="text-right">Rs ${tax.toFixed(0)}</td></tr>` : ""}
+          ${serviceChargeRate > 0 ? `<tr><td>Service (${serviceChargeRate}%):</td><td class="text-right">Rs ${serviceCharge.toFixed(0)}</td></tr>` : ""}
           <tr class="bold" style="font-size: 14px;">
             <td>TOTAL DUE:</td>
             <td class="text-right">Rs ${total.toFixed(0)}</td>
@@ -258,7 +419,7 @@ export default function POS() {
         ` : ""}
 
         <div class="divider"></div>
-        <div class="text-center footer">THANK YOU FOR VISITING!</div>
+        <div class="text-center footer">${footerText}</div>
         <script>
           window.onload = function() {
             setTimeout(function() { window.print(); window.close(); }, 300);
@@ -273,16 +434,22 @@ export default function POS() {
     // Reset Carts after printing
     if (mode === "dine-in") {
       setDineInOrders((prev) => ({ ...prev, [activeTable]: [] }));
+      setOrderRefs((prev) => ({
+        ...prev,
+        dineIn: { ...prev.dineIn, [activeTable]: null },
+      }));
     } else if (mode === "takeaway") {
       setTakeawayCart([]);
+      setOrderRefs((prev) => ({ ...prev, takeaway: null }));
     } else if (mode === "delivery") {
       setDeliveryCart([]);
       setCustomer({ name: "", phone: "", address: "" });
+      setOrderRefs((prev) => ({ ...prev, delivery: null }));
     }
   };
 
   return (
-    <div className="grid grid-cols-12 h-screen max-h-screen bg-stone-50 text-stone-800 antialiased font-sans selection:bg-orange-100 overflow-hidden">
+    <div className="grid grid-cols-12 h-full min-h-0 bg-stone-50 text-stone-800 antialiased font-sans selection:bg-orange-100 overflow-hidden">
       
       {/* LEFT PANEL: CATALOG MENU (Fixed structure, content scrolls) */}
       <div className="col-span-8 pt-4 px-4 pb-0 flex flex-col border-r border-stone-200 bg-stone-50/50 overflow-hidden h-full">
@@ -355,7 +522,11 @@ export default function POS() {
                   className="group bg-white rounded-2xl overflow-hidden border border-stone-200 hover:border-orange-300 shadow-sm hover:shadow-md active:scale-[0.98] cursor-pointer transition-all duration-200 flex flex-col"
                 >
                   <div className="h-32 w-full relative overflow-hidden bg-stone-100">
-                    <img src={p.image} className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500" alt={p.name} />
+                    <img
+                      src={p.image_path ? `${apiBase}${p.image_path}` : "https://images.unsplash.com/photo-1606755962773-d324e9a13086"}
+                      className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      alt={p.name}
+                    />
                     <span className="absolute top-2 left-2 px-2 py-0.5 text-[9px] font-black tracking-wide uppercase bg-stone-900/80 text-white rounded-md backdrop-blur-sm">
                       {p.category}
                     </span>
@@ -549,7 +720,7 @@ export default function POS() {
         </div>
 
         {/* TICKET BUCKET LIST (Strictly Scrollable Cart List) */}
-        <div className="flex-1 px-3 py-2 space-y-1.5 bg-stone-50/40 overflow-y-auto min-h-0">
+        <div className="flex-1 px-3 py-2 space-y-1.5 bg-stone-50/40 overflow-hidden min-h-0">
           {cart.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-center p-6 text-stone-300">
               <div className="w-10 h-10 rounded-full bg-stone-100 flex items-center justify-center mb-1.5">
@@ -603,10 +774,18 @@ export default function POS() {
               <span>Subtotal Items</span>
               <span className="text-stone-700">Rs {subtotal}</span>
             </div>
-            <div className="flex justify-between">
-              <span>Govt Tax (5%)</span>
-              <span className="text-stone-700">Rs {tax.toFixed(0)}</span>
-            </div>
+            {showTax && (
+              <div className="flex justify-between">
+                <span>Govt Tax ({taxRate}%)</span>
+                <span className="text-stone-700">Rs {tax.toFixed(0)}</span>
+              </div>
+            )}
+            {serviceChargeRate > 0 && (
+              <div className="flex justify-between">
+                <span>Service Charge ({serviceChargeRate}%)</span>
+                <span className="text-stone-700">Rs {serviceCharge.toFixed(0)}</span>
+              </div>
+            )}
             <div className="h-px bg-stone-200/60 my-1" />
             <div className="flex justify-between items-center text-xs text-stone-900 font-black pt-0.5">
               <span className="uppercase tracking-wider text-[10px] text-stone-400 font-bold">Total Due</span>

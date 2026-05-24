@@ -7,22 +7,24 @@ import {
   BarChart3,
   Settings,
   X,
-  UtensilsCrossed,
-  HelpCircle
+  UtensilsCrossed
 } from "lucide-react";
+import { useAuth } from "../context/AuthContext.jsx";
 
 const menuItems = [
-  { label: "Dashboard", icon: LayoutDashboard, path: "/" },
-  { label: "POS / Billing", icon: Store, path: "/pos" },
-  { label: "Kitchen / Order", icon: Store, path: "/kitchen" },
-  { label: "Products", icon: Package, path: "/products" },
-  { label: "Expenses", icon: Banknote, path: "/expenses" },
-  { label: "Reports", icon: BarChart3, path: "/reports" },
-  { label: "Settings", icon: Settings, path: "/settings" },
-  { label: "SignUp", icon: Settings, path: "/signup" },
+  { label: "Dashboard", icon: LayoutDashboard, path: "/", moduleKey: "dashboard" },
+  { label: "POS / Billing", icon: Store, path: "/pos", moduleKey: "pos" },
+  { label: "Kitchen / Order", icon: Store, path: "/kitchen", moduleKey: "kitchen" },
+  { label: "Products", icon: Package, path: "/products", moduleKey: "products" },
+  { label: "Expenses", icon: Banknote, path: "/expenses", moduleKey: "expenses" },
+  { label: "Reports", icon: BarChart3, path: "/reports", moduleKey: "reports" },
+  { label: "Settings", icon: Settings, path: "/settings", moduleKey: "settings" },
 ];
 
 export default function Sidebar({ isOpen, onClose }) {
+  const { user, can, logout } = useAuth();
+  const visibleItems = menuItems.filter((item) => can(item.moduleKey, "view"));
+
   return (
     <>
       {/* BACKGROUND BLUR OVERLAY (Crucial for Mobile/Tablet UX) */}
@@ -68,7 +70,7 @@ export default function Sidebar({ isOpen, onClose }) {
         {/* NAVIGATION LINKS CONTAINER */}
         <div className="flex-1 overflow-y-auto py-6 px-4 space-y-1 custom-scrollbar">
           <nav className="space-y-1.5">
-            {menuItems.map(({ label, icon: Icon, path }) => (
+            {visibleItems.map(({ label, icon: Icon, path }) => (
               <NavLink
                 key={path}
                 to={path}
@@ -109,13 +111,19 @@ export default function Sidebar({ isOpen, onClose }) {
         <div className="p-4 border-t border-neutral-800/50 bg-neutral-950/20 flex flex-col gap-3">
           <div className="flex items-center gap-3 bg-neutral-800/30 p-2.5 rounded-xl border border-neutral-800/40">
             <div className="w-8 h-8 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 flex items-center justify-center text-xs font-bold">
-              K
+              {user?.name?.slice(0, 1)?.toUpperCase() || "U"}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-bold text-neutral-200 truncate">Cashier Station 01</p>
-              <p className="text-[10px] text-neutral-500 font-medium truncate">Role: Manager Account</p>
+              <p className="text-xs font-bold text-neutral-200 truncate">{user?.name || "User"}</p>
+              <p className="text-[10px] text-neutral-500 font-medium truncate">Role: {user?.role || ""}</p>
             </div>
           </div>
+          <button
+            onClick={logout}
+            className="w-full bg-neutral-800/60 hover:bg-neutral-800 text-neutral-200 text-[11px] font-semibold py-2 rounded-lg transition-colors"
+          >
+            Sign Out
+          </button>
           <div className="text-center text-[10px] font-medium text-neutral-600 tracking-wider">
             SYSTEM VERSION 1.4.0
           </div>

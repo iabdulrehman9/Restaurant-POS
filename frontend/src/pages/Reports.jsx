@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { 
   BarChart3, 
   TrendingUp, 
@@ -8,11 +8,16 @@ import {
   FileText,
   Printer,
   Receipt,
-  Percent,
   ChevronLeft,
   ChevronRight,
   Briefcase
 } from "lucide-react";
+import {
+  getReportExpenses,
+  getReportProducts,
+  getReportSales,
+  getReportSummary
+} from "../api/index.js";
 
 export default function Reports() {
   const [tab, setTab] = useState("sales");
@@ -24,48 +29,65 @@ export default function Reports() {
   
   const itemsPerPage = 5;
 
-  /* ---------------- DATA SAMPLES ---------------- */
-  const sales = [
-    { date: "2026-05-01", ordersCount: 14, subtotal: 5000, tax: 250, total: 5250 },
-    { date: "2026-05-02", ordersCount: 22, subtotal: 7000, tax: 350, total: 7350 },
-    { date: "2026-05-03", ordersCount: 19, subtotal: 6500, tax: 325, total: 6825 },
-  ];
+  const [sales, setSales] = useState([]);
+  const [expenses, setExpenses] = useState([]);
+  const [products, setProducts] = useState([]);
+  const [summary, setSummary] = useState({
+    totalSales: 0,
+    subtotal: 0,
+    tax: 0,
+    ordersCount: 0,
+    totalExpenses: 0,
+    profit: 0,
+    avgBill: 0,
+  });
 
-  const expenses = [
-    { id: "EXP-101", date: "2026-05-01", category: "Stock & Ingredients", description: "Chicken & Fresh Buns Restock", total: 2000 },
-    { id: "EXP-102", date: "2026-05-02", category: "Bills & Utilities", description: "Gas Cylinder Refill", total: 1500 },
-    { id: "EXP-103", date: "2026-05-03", category: "Staff Salaries", description: "Daily Wage Staff Payout", total: 1800 },
-    { id: "EXP-104", date: "2026-05-03", category: "Marketing & Ads", description: "Flyer Printing & Social Boost", total: 1200 },
-  ];
+  useEffect(() => {
+    const loadReports = async () => {
+      try {
+        const summaryData = await getReportSummary();
+        setSummary(summaryData);
+      } catch (err) {
+        setSummary((prev) => ({ ...prev }));
+      }
 
-  const products = [
-    { name: "Zinger Burger", sold: 120, revenue: 66000 },
-    { name: "Fries", sold: 200, revenue: 40000 },
-    { name: "Cold Drink", sold: 150, revenue: 22500 },
-    { name: "Pizza", sold: 40, revenue: 48000 },
-  ];
+      try {
+        const salesData = await getReportSales();
+        setSales(salesData.sales || []);
+      } catch (err) {
+        setSales([]);
+      }
+
+      try {
+        const expenseData = await getReportExpenses();
+        setExpenses(expenseData.expenses || []);
+      } catch (err) {
+        setExpenses([]);
+      }
+
+      try {
+        const productData = await getReportProducts();
+        setProducts(productData.products || []);
+      } catch (err) {
+        setProducts([]);
+      }
+    };
+
+    loadReports();
+  }, []);
 
   /* ---------------- CALCULATIONS ---------------- */
   const financialSummary = useMemo(() => {
-    const totalSalesBeforeTax = sales.reduce((sum, item) => sum + item.subtotal, 0);
-    const totalTaxCollected = sales.reduce((sum, item) => sum + item.tax, 0);
-    const totalFinalSales = sales.reduce((sum, item) => sum + item.total, 0);
-    const totalOrdersCount = sales.reduce((sum, item) => sum + item.ordersCount, 0);
-    const totalExpensesCost = expenses.reduce((sum, item) => sum + item.total, 0);
-    
-    const takeHomeProfit = totalSalesBeforeTax - totalExpensesCost;
-    const averageBillValue = totalOrdersCount > 0 ? totalFinalSales / totalOrdersCount : 0;
-
     return {
-      totalSalesBeforeTax,
-      totalTaxCollected,
-      totalFinalSales,
-      totalOrdersCount,
-      totalExpensesCost,
-      takeHomeProfit,
-      averageBillValue
+      totalSalesBeforeTax: summary.subtotal || 0,
+      totalTaxCollected: summary.tax || 0,
+      totalFinalSales: summary.totalSales || 0,
+      totalOrdersCount: summary.ordersCount || 0,
+      totalExpensesCost: summary.totalExpenses || 0,
+      takeHomeProfit: summary.profit || 0,
+      averageBillValue: summary.avgBill || 0,
     };
-  }, [sales, expenses]);
+  }, [summary]);
 
   const sortedProducts = useMemo(() => [...products].sort((a, b) => b.sold - a.sold), [products]);
 

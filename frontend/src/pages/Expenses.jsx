@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { 
   Plus, 
   Pencil, 
@@ -11,6 +11,7 @@ import {
   Inbox,
   Clock
 } from "lucide-react";
+import { createExpense, deleteExpense, getExpenses, updateExpense } from "../api/index.js";
 
 const categories = [
   "Rent",
@@ -23,22 +24,7 @@ const categories = [
 ];
 
 export default function Expenses() {
-  const [expenses, setExpenses] = useState([
-    {
-      id: 1,
-      category: "Electricity",
-      amount: "45000",
-      date: "2026-05-18",
-      note: "Main production facility unit billing",
-    },
-    {
-      id: 2,
-      category: "Raw Material",
-      amount: "185000",
-      date: "2026-05-20",
-      note: "Bulk meat and packaging restock shipment",
-    }
-  ]);
+  const [expenses, setExpenses] = useState([]);
 
   const [form, setForm] = useState({
     id: null,
@@ -50,6 +36,19 @@ export default function Expenses() {
 
   const [editMode, setEditMode] = useState(false);
   const [validationError, setValidationError] = useState("");
+
+  const loadExpenses = async () => {
+    try {
+      const data = await getExpenses();
+      setExpenses(data.expenses || []);
+    } catch (err) {
+      setExpenses([]);
+    }
+  };
+
+  useEffect(() => {
+    loadExpenses();
+  }, []);
 
   const resetForm = () => {
     setForm({
@@ -63,7 +62,7 @@ export default function Expenses() {
     setValidationError("");
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.amount || !form.date) {
       setValidationError("Amount and Date values are mandatory fields.");
@@ -71,10 +70,16 @@ export default function Expenses() {
     }
     setValidationError("");
 
-    if (editMode) {
-      setExpenses(expenses.map((exp) => exp.id === form.id ? form : exp));
-    } else {
-      setExpenses([...expenses, { ...form, id: Date.now() }]);
+    try {
+      if (editMode) {
+        await updateExpense(form.id, form);
+      } else {
+        await createExpense(form);
+      }
+      await loadExpenses();
+    } catch (err) {
+      setValidationError(err.message || "Unable to save expense.");
+      return;
     }
 
     resetForm();
@@ -87,8 +92,13 @@ export default function Expenses() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  const handleDelete = (id) => {
-    setExpenses(expenses.filter((exp) => exp.id !== id));
+  const handleDelete = async (id) => {
+    try {
+      await deleteExpense(id);
+      await loadExpenses();
+    } catch (err) {
+      setValidationError(err.message || "Unable to delete expense.");
+    }
   };
 
   const totalExpense = useMemo(() => {

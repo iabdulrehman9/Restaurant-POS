@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   DollarSign,
   Wallet,
@@ -7,20 +8,60 @@ import {
   Percent,
   Zap
 } from "lucide-react";
+import { getReportSummary } from "../api/index.js";
 
 export default function Dashboard() {
-  const dashboardData = {
-    todaySales: 24500,
-    todayExpenses: 6200,
-    monthlyRevenue: 420000,
-    monthlyExpenses: 120000,
-  };
+  const [dashboardData, setDashboardData] = useState({
+    todaySales: 0,
+    todayExpenses: 0,
+    monthlyRevenue: 0,
+    monthlyExpenses: 0,
+  });
+
+  useEffect(() => {
+    const loadSummary = async () => {
+      const now = new Date();
+      const startOfDay = new Date(now);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(now);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+      try {
+        const today = await getReportSummary({
+          from: startOfDay.toISOString(),
+          to: endOfDay.toISOString(),
+        });
+        const month = await getReportSummary({
+          from: startOfMonth.toISOString(),
+          to: endOfMonth.toISOString(),
+        });
+
+        setDashboardData({
+          todaySales: Number(today.totalSales || 0),
+          todayExpenses: Number(today.totalExpenses || 0),
+          monthlyRevenue: Number(month.totalSales || 0),
+          monthlyExpenses: Number(month.totalExpenses || 0),
+        });
+      } catch (err) {
+        setDashboardData((prev) => ({ ...prev }));
+      }
+    };
+
+    loadSummary();
+  }, []);
 
   const netProfit = dashboardData.todaySales - dashboardData.todayExpenses;
   const monthlyProfit = dashboardData.monthlyRevenue - dashboardData.monthlyExpenses;
 
-  const dailyMargin = ((netProfit / dashboardData.todaySales) * 100).toFixed(0);
-  const monthlyMargin = ((monthlyProfit / dashboardData.monthlyRevenue) * 100).toFixed(0);
+  const dailyMargin = dashboardData.todaySales
+    ? ((netProfit / dashboardData.todaySales) * 100).toFixed(0)
+    : "0";
+  const monthlyMargin = dashboardData.monthlyRevenue
+    ? ((monthlyProfit / dashboardData.monthlyRevenue) * 100).toFixed(0)
+    : "0";
 
   return (
     <div className="h-screen w-full bg-neutral-50 p-4 md:p-6 flex flex-col overflow-hidden text-neutral-800 antialiased font-sans">

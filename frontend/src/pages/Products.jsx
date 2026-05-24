@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { 
   Plus, 
   Pencil, 
@@ -11,36 +11,22 @@ import {
   Utensils,
   PlusCircle
 } from "lucide-react";
+import { createProduct, deleteProduct, getProducts, updateProduct } from "../api/index.js";
+import { getApiBaseUrl } from "../api/client.js";
 
 const initialCategories = ["Burger", "Drinks", "Pizza", "Fries"];
 const placeholderImage = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=60";
 
 export default function Products() {
-  const [products, setProducts] = useState([
-    {
-      id: 1,
-      name: "Crispy Zinger Crunch",
-      category: "Burger",
-      price: "550",
-      image: "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500&auto=format&fit=crop&q=60",
-      active: true
-    },
-    {
-      id: 2,
-      name: "Classic Pepperoni Feast",
-      category: "Pizza",
-      price: "1200",
-      image: "https://images.unsplash.com/photo-1513104890138-7c749659a591?w=500&auto=format&fit=crop&q=60",
-      active: true
-    }
-  ]);
+  const [products, setProducts] = useState([]);
 
   const [form, setForm] = useState({
     id: null,
     name: "",
     category: "Burger",
     price: "",
-    image: "",
+    imageFile: null,
+    imagePreview: "",
     active: true,
   });
 
@@ -48,16 +34,31 @@ export default function Products() {
   const [errorMsg, setErrorMsg] = useState("");
   const fileInputRef = useRef(null);
   const formHeadingRef = useRef(null);
+  const apiBase = getApiBaseUrl().replace(/\/api$/, "");
+
+  const loadProducts = async () => {
+    try {
+      const data = await getProducts();
+      setProducts(data.products || []);
+    } catch (err) {
+      setProducts([]);
+    }
+  };
+
+  useEffect(() => {
+    loadProducts();
+  }, []);
+
+  const categoryOptions = useMemo(() => {
+    const dynamic = products.map((p) => p.category);
+    return Array.from(new Set([...initialCategories, ...dynamic]));
+  }, [products]);
 
   const handleImage = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = () => {
-      setForm({ ...form, image: reader.result });
-    };
-    reader.readAsDataURL(file);
+    const previewUrl = URL.createObjectURL(file);
+    setForm({ ...form, imageFile: file, imagePreview: previewUrl });
   };
 
   const resetForm = () => {
@@ -66,7 +67,8 @@ export default function Products() {
       name: "",
       category: "Burger",
       price: "",
-      image: "",
+      imageFile: null,
+      imagePreview: "",
       active: true,
     });
     setEditMode(false);
@@ -79,7 +81,7 @@ export default function Products() {
     formHeadingRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!form.name || !form.price) {
       setErrorMsg("Please fill in both name and price fields.");
@@ -87,32 +89,65 @@ export default function Products() {
     }
     setErrorMsg("");
 
-    const finalForm = { ...form, image: form.image || placeholderImage };
+    const formData = new FormData();
+    formData.append("name", form.name);
+    formData.append("category", form.category);
+    formData.append("price", form.price);
+    formData.append("active", form.active ? "1" : "0");
+    if (form.imageFile) {
+      formData.append("image", form.imageFile);
+    }
 
-    if (editMode) {
-      setProducts(products.map((p) => p.id === form.id ? finalForm : p));
-    } else {
-      setProducts([...products, { ...finalForm, id: Date.now() }]);
+    try {
+      if (editMode) {
+        await updateProduct(form.id, formData);
+      } else {
+        await createProduct(formData);
+      }
+      await loadProducts();
+    } catch (err) {
+      setErrorMsg(err.message || "Unable to save product.");
+      return;
     }
 
     resetForm();
   };
 
   const handleEdit = (product) => {
-    setForm(product);
+    setForm({
+      id: product.id,
+      name: product.name,
+      category: product.category,
+      price: product.price,
+      imageFile: null,
+      imagePreview: product.image_path ? `${apiBase}${product.image_path}` : "",
+      active: product.active === 1 || product.active === true,
+    });
     setEditMode(true);
     setErrorMsg("");
     formHeadingRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
-  const handleDelete = (id) => {
-    setProducts(products.filter((p) => p.id !== id));
+  const handleDelete = async (id) => {
+    try {
+      await deleteProduct(id);
+      await loadProducts();
+    } catch (err) {
+      setErrorMsg(err.message || "Unable to delete product.");
+    }
   };
 
-  const toggleActive = (id) => {
-    setProducts(
-      products.map((p) => p.id === id ? { ...p, active: !p.active } : p)
-    );
+  const toggleActive = async (id) => {
+    const target = products.find((p) => p.id === id);
+    if (!target) return;
+    const formData = new FormData();
+    formData.append("active", target.active ? "0" : "1");
+    try {
+      await updateProduct(id, formData);
+      await loadProducts();
+    } catch (err) {
+      setErrorMsg(err.message || "Unable to update product status.");
+    }
   };
 
   return (
@@ -166,7 +201,7 @@ export default function Products() {
                     value={form.category}
                     onChange={(e) => setForm({ ...form, category: e.target.value })}
                   >
-                    {initialCategories.map((c) => (
+                    {categoryOptions.map((c) => (
                       <option key={c} value={c}>{c}</option>
                     ))}
                   </select>
@@ -205,9 +240,9 @@ export default function Products() {
                   onChange={handleImage}
                 />
                 
-                {form.image ? (
+                {form.imagePreview ? (
                   <div className="relative w-full h-20 rounded-lg overflow-hidden shadow-inner">
-                    <img src={form.image} alt="Preview" className="w-full h-full object-cover" />
+                    <img src={form.imagePreview} alt="Preview" className="w-full h-full object-cover" />
                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-150 flex items-center justify-center text-white text-[10px] font-bold gap-1">
                       <UploadCloud size={12} /> Replace Media
                     </div>
@@ -312,7 +347,7 @@ export default function Products() {
                 {/* THUMBNAIL */}
                 <div className="h-14 w-14 bg-neutral-100 rounded-lg overflow-hidden relative flex-shrink-0 border border-neutral-200/40">
                   <img
-                    src={p.image}
+                    src={p.image_path ? `${apiBase}${p.image_path}` : placeholderImage}
                     alt={p.name}
                     className="h-full w-full object-cover"
                     loading="lazy"

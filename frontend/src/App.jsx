@@ -1,5 +1,6 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import AdminLayout from "./layout/AdminLayout";
+import { useAuth } from "./context/AuthContext.jsx";
 
 import Dashboard from "./pages/Dashboard";
 import POS from "./pages/POS";
@@ -11,11 +12,29 @@ import Reports from "./pages/Reports";
 import Settings from "./pages/Settings"; 
 import SignUp from "./pages/SignUp";
 
+const RequireAuth = ({ children }) => {
+  const { user, loading } = useAuth();
+  if (loading) {
+    return null;
+  }
+  if (!user) {
+    return <Navigate to="/signup" replace />;
+  }
+  return children;
+};
+
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route element={<AdminLayout />}>
+        <Route path="/signup" element={<SignUp />} />
+        <Route
+          element={
+            <RequireAuth>
+              <AdminLayout />
+            </RequireAuth>
+          }
+        >
           <Route path="/" element={<Dashboard />} />
           <Route path="/pos" element={<POS />} />
           <Route path="/kitchen" element={<Kitchen />} />
@@ -24,8 +43,8 @@ export default function App() {
           <Route path="/reports" element={<Reports />} />
           {/* FIX: Using the matching pluralized <Settings /> element */}
           <Route path="/settings" element={<Settings />} />
-          <Route path="/signup" element={<SignUp />} />
         </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );

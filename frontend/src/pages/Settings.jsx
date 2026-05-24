@@ -1,9 +1,10 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { 
   Building2, Receipt, Percent, Printer, 
   Armchair, Utensils, ShieldCheck, Settings2, 
   Database, UserCheck, Save, RefreshCw, Upload
 } from "lucide-react";
+import { getSettings, updateSettings } from "../api/index.js";
 
 export default function Settings() {
   const [tab, setTab] = useState("business");
@@ -56,16 +57,35 @@ export default function Settings() {
     activityLog: true,
   });
 
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const data = await getSettings();
+        if (data.settings) {
+          setSettings((prev) => ({ ...prev, ...data.settings }));
+        }
+      } catch (err) {
+        setSettings((prev) => ({ ...prev }));
+      }
+    };
+
+    loadSettings();
+  }, []);
+
   const update = (key, value) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setIsSaving(true);
-    setTimeout(() => {
-      setIsSaving(false);
+    try {
+      await updateSettings(settings);
       alert("Configuration keys flushed and saved successfully!");
-    }, 800);
+    } catch (err) {
+      alert(err.message || "Unable to save settings.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Tab schema mapping to keep things highly readable and clean
