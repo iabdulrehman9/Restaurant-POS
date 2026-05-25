@@ -111,6 +111,153 @@ export default function Reports() {
   const expensesMaxPages = Math.ceil(expenses.length / itemsPerPage) || 1;
   const productsMaxPages = Math.ceil(sortedProducts.length / itemsPerPage) || 1;
 
+  const formatMoney = (value) => Number(value || 0).toLocaleString();
+
+  const buildReportHtml = () => {
+    const salesRows = sales.length
+      ? sales
+          .map(
+            (row) => `
+              <tr>
+                <td>${row.date}</td>
+                <td style="text-align:center;">${row.ordersCount}</td>
+                <td style="text-align:right;">RS ${formatMoney(row.subtotal)}</td>
+                <td style="text-align:right;">RS ${formatMoney(row.tax)}</td>
+                <td style="text-align:right;">RS ${formatMoney(row.total)}</td>
+              </tr>
+            `
+          )
+          .join("")
+      : `<tr><td colspan="5" style="text-align:center;">No sales data</td></tr>`;
+
+    const expenseRows = expenses.length
+      ? expenses
+          .map(
+            (row) => `
+              <tr>
+                <td>${row.id || ""}<div style="font-size:11px; color:#666;">${row.date || ""}</div></td>
+                <td>${row.category || ""}</td>
+                <td>${row.description || ""}</td>
+                <td style="text-align:right;">RS ${formatMoney(row.total)}</td>
+              </tr>
+            `
+          )
+          .join("")
+      : `<tr><td colspan="4" style="text-align:center;">No expense data</td></tr>`;
+
+    const productRows = sortedProducts.length
+      ? sortedProducts
+          .map(
+            (row) => `
+              <tr>
+                <td>${row.name || ""}</td>
+                <td style="text-align:right;">${row.sold || 0}</td>
+                <td style="text-align:right;">RS ${formatMoney(row.revenue)}</td>
+              </tr>
+            `
+          )
+          .join("")
+      : `<tr><td colspan="3" style="text-align:center;">No product data</td></tr>`;
+
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>POS Report</title>
+        <style>
+          @page { size: A4; margin: 12mm; }
+          body { font-family: Arial, sans-serif; color: #111; }
+          h1 { font-size: 20px; margin: 0 0 6px; }
+          h2 { font-size: 14px; margin: 18px 0 8px; }
+          .summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+          .card { border: 1px solid #ddd; padding: 10px; border-radius: 6px; }
+          .label { font-size: 11px; color: #666; text-transform: uppercase; }
+          .value { font-size: 18px; font-weight: bold; }
+          table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+          th, td { border: 1px solid #ddd; padding: 6px; font-size: 12px; }
+          th { background: #f4f4f4; text-align: left; }
+          .muted { color: #666; font-size: 11px; }
+        </style>
+      </head>
+      <body>
+        <h1>Business Report</h1>
+        <div class="muted">Generated on ${new Date().toLocaleString()}</div>
+
+        <h2>Summary</h2>
+        <div class="summary">
+          <div class="card"><div class="label">Total Sales</div><div class="value">RS ${formatMoney(financialSummary.totalFinalSales)}</div></div>
+          <div class="card"><div class="label">Total Expenses</div><div class="value">RS ${formatMoney(financialSummary.totalExpensesCost)}</div></div>
+          <div class="card"><div class="label">Net Profit</div><div class="value">RS ${formatMoney(financialSummary.takeHomeProfit)}</div></div>
+          <div class="card"><div class="label">Orders</div><div class="value">${financialSummary.totalOrdersCount}</div></div>
+          <div class="card"><div class="label">Avg. Ticket</div><div class="value">RS ${formatMoney(financialSummary.averageBillValue)}</div></div>
+          <div class="card"><div class="label">Tax Collected</div><div class="value">RS ${formatMoney(financialSummary.totalTaxCollected)}</div></div>
+        </div>
+
+        <h2>Sales Logs</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th style="text-align:center;">Orders</th>
+              <th style="text-align:right;">Net Sales</th>
+              <th style="text-align:right;">Tax</th>
+              <th style="text-align:right;">Gross Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${salesRows}
+          </tbody>
+        </table>
+
+        <h2>Expense Logs</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>ID / Date</th>
+              <th>Category</th>
+              <th>Details</th>
+              <th style="text-align:right;">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${expenseRows}
+          </tbody>
+        </table>
+
+        <h2>Product Performance</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Product</th>
+              <th style="text-align:right;">Units Sold</th>
+              <th style="text-align:right;">Revenue</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${productRows}
+          </tbody>
+        </table>
+      </body>
+      </html>
+    `;
+  };
+
+  const handlePrint = () => {
+    const html = buildReportHtml();
+    const win = window.open("", "_blank", "width=900,height=700");
+    if (!win) {
+      alert("Popup blocked. Please allow popups to print/save PDF.");
+      return;
+    }
+    win.document.write(html);
+    win.document.close();
+    win.onload = () => {
+      win.focus();
+      win.print();
+    };
+  };
+
   return (
     <div className="max-w-[1600px] mx-auto p-5 space-y-5 bg-orange-50/30 h-screen flex flex-col overflow-hidden antialiased text-neutral-800">
       
@@ -141,14 +288,14 @@ export default function Reports() {
 
         <div className="flex items-center gap-2 no-print">
           <button
-            onClick={() => window.print()}
+            onClick={handlePrint}
             className="bg-white hover:bg-neutral-50 text-neutral-700 font-semibold px-4 py-2 rounded-xl text-xs border border-neutral-200 shadow-sm flex items-center gap-2 transition-all active:scale-95"
           >
             <FileText size={14} className="text-orange-500" />
             <span>Save PDF</span>
           </button>
           <button
-            onClick={() => window.print()}
+            onClick={handlePrint}
             className="bg-orange-500 hover:bg-orange-600 text-white font-semibold px-4 py-2 rounded-xl text-xs shadow-sm shadow-orange-500/10 flex items-center gap-2 transition-all active:scale-95"
           >
             <Printer size={14} />
