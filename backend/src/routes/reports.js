@@ -55,7 +55,7 @@ const buildExpenseDateFilter = (from, to) => {
 
 router.get("/summary", authenticate, requirePermission("reports", "view"), (req, res) => {
   const db = getDb();
-  const { from, to } = req.query;
+  const { from, to, expenseFrom, expenseTo } = req.query;
   const { filters, values } = buildDateFilter(from, to);
 
   const where = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
@@ -66,7 +66,7 @@ router.get("/summary", authenticate, requirePermission("reports", "view"), (req,
     )
     .get(...values);
 
-  const expenseFilter = buildExpenseDateFilter(from, to);
+  const expenseFilter = buildExpenseDateFilter(expenseFrom || from, expenseTo || to);
   const expenseWhere = expenseFilter.filters.length
     ? `WHERE ${expenseFilter.filters.join(" AND ")}`
     : "";
@@ -108,9 +108,9 @@ router.get("/sales", authenticate, requirePermission("reports", "view"), (req, r
 
 router.get("/expenses", authenticate, requirePermission("reports", "view"), (req, res) => {
   const db = getDb();
-  const { from, to } = req.query;
+  const { from, to, expenseFrom, expenseTo } = req.query;
 
-  const expenseFilter = buildExpenseDateFilter(from, to);
+  const expenseFilter = buildExpenseDateFilter(expenseFrom || from, expenseTo || to);
   const where = expenseFilter.filters.length
     ? `WHERE ${expenseFilter.filters.join(" AND ")}`
     : "";

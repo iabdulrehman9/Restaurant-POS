@@ -29,14 +29,22 @@ export default function Dashboard() {
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
+      const pad2 = (value) => String(value).padStart(2, "0");
+      const toDateOnly = (date) =>
+        `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+
       try {
         const today = await getReportSummary({
           from: startOfDay.toISOString(),
           to: endOfDay.toISOString(),
+          expenseFrom: toDateOnly(startOfDay),
+          expenseTo: toDateOnly(endOfDay),
         });
         const month = await getReportSummary({
           from: startOfMonth.toISOString(),
           to: endOfMonth.toISOString(),
+          expenseFrom: toDateOnly(startOfMonth),
+          expenseTo: toDateOnly(endOfMonth),
         });
 
         setDashboardData({
