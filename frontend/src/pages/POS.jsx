@@ -54,7 +54,13 @@ export default function POS() {
   const [customer, setCustomer] = useState(
     storedState.customer || { name: "", phone: "", address: "" }
   );
-  const [validationError, setValidationError] = useState(false);
+  const [takeawayCustomer, setTakeawayCustomer] = useState(
+    storedState.takeawayCustomer || { name: "", phone: "" }
+  );
+  const [validationError, setValidationError] = useState({
+    delivery: false,
+    takeaway: false,
+  });
   const [orderRefs, setOrderRefs] = useState({
     dineIn: storedState.orderRefs?.dineIn || {},
     takeaway: storedState.orderRefs?.takeaway || null,
@@ -90,10 +96,11 @@ export default function POS() {
       takeawayCart,
       deliveryCart,
       customer,
+      takeawayCustomer,
       orderRefs,
     };
     localStorage.setItem(POS_STATE_KEY, JSON.stringify(snapshot));
-  }, [mode, activeTable, dineInOrders, takeawayCart, deliveryCart, customer, orderRefs]);
+  }, [mode, activeTable, dineInOrders, takeawayCart, deliveryCart, customer, takeawayCustomer, orderRefs]);
 
   const tables = useMemo(() => {
     const count = Number(settings.tables || 5);
@@ -128,7 +135,7 @@ export default function POS() {
       const matchesCategory = activeCategory === "All" || p.category === activeCategory;
       return matchesSearch && matchesCategory;
     });
-  }, [searchTerm, activeCategory]);
+  }, [products, searchTerm, activeCategory]);
 
   // Determine active item bucket depending on fulfillment type
   const cart = useMemo(() => {
@@ -212,16 +219,44 @@ export default function POS() {
   const serviceCharge = subtotal * (serviceChargeRate / 100);
   const total = subtotal + tax + serviceCharge;
 
-  const totalDineInItems = Object.values(dineInOrders).flat().reduce((sum, item) => sum + item.qty, 0);
-  const totalTakeawayItems = takeawayCart.reduce((sum, item) => sum + item.qty, 0);
-  const totalDeliveryItems = deliveryCart.reduce((sum, item) => sum + item.qty, 0);
+  const occupiedTableCount = Object.values(dineInOrders).filter((items) => items.length > 0).length;
+  const takeawayOrderCount = takeawayCart.length > 0 ? 1 : 0;
+  const deliveryOrderCount = deliveryCart.length > 0 ? 1 : 0;
+  const takeawayPendingCount = takeawayOrderCount && orderRefs.takeaway?.status !== "completed" ? 1 : 0;
+  const deliveryPendingCount = deliveryOrderCount && orderRefs.delivery?.status !== "completed" ? 1 : 0;
 
   // Kitchen Order Ticket (KOT) implementation logic
+  const resolveCustomer = () => {
+    if (mode === "delivery") return customer;
+    if (mode === "takeaway") return takeawayCustomer;
+    return null;
+  };
+
+  const validateCustomer = () => {
+    if (mode === "delivery") {
+      const missingName = !customer.name;
+      const missingAddress = !customer.address;
+      const hasError = missingName || missingAddress;
+      setValidationError({ delivery: hasError, takeaway: false });
+      return !hasError;
+    }
+
+    if (mode === "takeaway") {
+      const missingName = !takeawayCustomer.name;
+      const hasError = missingName;
+      setValidationError({ takeaway: hasError, delivery: false });
+      return !hasError;
+    }
+
+    setValidationError({ delivery: false, takeaway: false });
+    return true;
+  };
+
   const buildOrderPayload = (status, paymentMethod, paidAmount) => ({
     orderType: mode,
     status,
     tableNo: mode === "dine-in" ? activeTable : null,
-    customer: mode === "delivery" ? customer : null,
+    customer: resolveCustomer(),
     items: cart.map((item) => ({
       productId: item.id,
       name: item.name,
@@ -239,19 +274,17 @@ export default function POS() {
 
   const printKOT = async () => {
     if (cart.length === 0) return;
-    if (mode === "delivery" && (!customer.name || !customer.phone || !customer.address)) {
-      setValidationError(true);
-      return;
-    }
-    setValidationError(false);
+    if (!validateCustomer()) return;
 
     let orderRef = getActiveOrderRef();
 
     try {
       if (!orderRef) {
         const created = await createOrder(buildOrderPayload("pending", "unpaid", 0));
-        orderRef = { orderId: created.id, orderNumber: created.orderNumber };
+        orderRef = { orderId: created.id, orderNumber: created.orderNumber, status: "pending" };
         setActiveOrderRef(orderRef);
+      } else if (!orderRef.status) {
+        setActiveOrderRef({ ...orderRef, status: "pending" });
       }
 
       await markOrderKOT(orderRef.orderId);
@@ -261,6 +294,7 @@ export default function POS() {
     }
 
     const currentDate = new Date().toLocaleString();
+    const activeCustomer = resolveCustomer();
 
     const win = window.open("", "_blank", "width=400,height=600");
     if (!win) return alert("Popup blocked! Please allow popups to print tickets.");
@@ -303,7 +337,8 @@ export default function POS() {
         `).join("")}
 
         <div class="divider"></div>
-        ${mode === "delivery" ? `<div><strong>Cust:</strong> ${customer.name}</div>` : ""}
+        ${activeCustomer?.name ? `<div><strong>Cust:</strong> ${activeCustomer.name}</div>` : ""}
+        ${activeCustomer?.phone ? `<div><strong>Phone:</strong> ${activeCustomer.phone}</div>` : ""}
         <script>
           window.onload = function() {
             setTimeout(function() { window.print(); window.close(); }, 300);
@@ -319,18 +354,14 @@ export default function POS() {
   // Receipt printing implementation logic
   const printReceipt = async () => {
     if (cart.length === 0) return;
-    if (mode === "delivery" && (!customer.name || !customer.phone || !customer.address)) {
-      setValidationError(true);
-      return;
-    }
-    setValidationError(false);
+    if (!validateCustomer()) return;
 
     let orderRef = getActiveOrderRef();
 
     try {
       if (!orderRef) {
-        const created = await createOrder(buildOrderPayload("completed", "cash", total));
-        orderRef = { orderId: created.id, orderNumber: created.orderNumber };
+        const created = await createOrder(buildOrderPayload("pending", "cash", total));
+        orderRef = { orderId: created.id, orderNumber: created.orderNumber, status: "pending" };
         setActiveOrderRef(orderRef);
       } else {
         await updateOrder(orderRef.orderId, {
@@ -339,6 +370,7 @@ export default function POS() {
           paidAmount: total,
           changeDue: 0,
         });
+        setActiveOrderRef({ ...orderRef, status: "completed" });
       }
 
       await markOrderReceipt(orderRef.orderId);
@@ -348,6 +380,7 @@ export default function POS() {
     }
 
     const currentDate = new Date().toLocaleString();
+    const activeCustomer = resolveCustomer();
 
     const win = window.open("", "_blank", "width=400,height=600");
     if (!win) return alert("Popup blocked! Please allow popups to print invoices.");
@@ -410,12 +443,12 @@ export default function POS() {
           </tr>
         </table>
 
-        ${mode === "delivery" ? `
+        ${activeCustomer?.name ? `
           <div class="divider"></div>
-          <div class="bold">DELIVERY TO:</div>
-          <div>${customer.name}</div>
-          <div>Phone: ${customer.phone}</div>
-          <div>Addr: ${customer.address}</div>
+          <div class="bold">CUSTOMER:</div>
+          <div>${activeCustomer.name}</div>
+          ${activeCustomer.phone ? `<div>Phone: ${activeCustomer.phone}</div>` : ""}
+          ${activeCustomer.address ? `<div>Addr: ${activeCustomer.address}</div>` : ""}
         ` : ""}
 
         <div class="divider"></div>
@@ -440,6 +473,7 @@ export default function POS() {
       }));
     } else if (mode === "takeaway") {
       setTakeawayCart([]);
+      setTakeawayCustomer({ name: "", phone: "" });
       setOrderRefs((prev) => ({ ...prev, takeaway: null }));
     } else if (mode === "delivery") {
       setDeliveryCart([]);
@@ -569,7 +603,7 @@ export default function POS() {
           <div className="grid grid-cols-3 gap-1 bg-stone-100 p-1 rounded-xl border border-stone-200/40">
             <button
               type="button"
-              onClick={() => { setMode("dine-in"); setValidationError(false); }}
+              onClick={() => { setMode("dine-in"); setValidationError({ delivery: false, takeaway: false }); }}
               className={`relative flex flex-col items-center justify-center py-2 px-1 rounded-lg transition-all ${
                 mode === "dine-in" 
                   ? "bg-white text-orange-600 shadow-sm font-black" 
@@ -578,16 +612,16 @@ export default function POS() {
             >
               <Utensils size={14} className={mode === "dine-in" ? "text-orange-500" : "text-stone-400"} />
               <span className="text-[10px] mt-0.5">Dine-In</span>
-              {totalDineInItems > 0 && (
+              {occupiedTableCount > 0 && (
                 <span className="absolute top-1 right-1 px-1 min-w-[14px] h-[14px] flex items-center justify-center text-[8px] bg-orange-500 text-white rounded-full font-black scale-90">
-                  {totalDineInItems}
+                  {occupiedTableCount}
                 </span>
               )}
             </button>
 
             <button
               type="button"
-              onClick={() => { setMode("takeaway"); setValidationError(false); }}
+              onClick={() => { setMode("takeaway"); setValidationError({ delivery: false, takeaway: false }); }}
               className={`relative flex flex-col items-center justify-center py-2 px-1 rounded-lg transition-all ${
                 mode === "takeaway" 
                   ? "bg-white text-orange-600 shadow-sm font-black" 
@@ -596,16 +630,16 @@ export default function POS() {
             >
               <ShoppingBag size={14} className={mode === "takeaway" ? "text-orange-500" : "text-stone-400"} />
               <span className="text-[10px] mt-0.5">Takeaway</span>
-              {totalTakeawayItems > 0 && (
+              {takeawayOrderCount > 0 && (
                 <span className="absolute top-1 right-1 px-1 min-w-[14px] h-[14px] flex items-center justify-center text-[8px] bg-orange-500 text-white rounded-full font-black scale-90">
-                  {totalTakeawayItems}
+                  {takeawayOrderCount}
                 </span>
               )}
             </button>
 
             <button
               type="button"
-              onClick={() => { setMode("delivery"); setValidationError(false); }}
+              onClick={() => { setMode("delivery"); setValidationError({ delivery: false, takeaway: false }); }}
               className={`relative flex flex-col items-center justify-center py-2 px-1 rounded-lg transition-all ${
                 mode === "delivery" 
                   ? "bg-white text-orange-600 shadow-sm font-black" 
@@ -614,9 +648,9 @@ export default function POS() {
             >
               <Bike size={14} className={mode === "delivery" ? "text-orange-500" : "text-stone-400"} />
               <span className="text-[10px] mt-0.5">Delivery</span>
-              {totalDeliveryItems > 0 && (
+              {deliveryOrderCount > 0 && (
                 <span className="absolute top-1 right-1 px-1 min-w-[14px] h-[14px] flex items-center justify-center text-[8px] bg-orange-500 text-white rounded-full font-black scale-90">
-                  {totalDeliveryItems}
+                  {deliveryOrderCount}
                 </span>
               )}
             </button>
@@ -663,9 +697,17 @@ export default function POS() {
             {/* Delivery Mode Inputs */}
             {mode === "delivery" && (
               <div className="space-y-1.5">
-                <div className="flex items-center gap-1 text-stone-400 mb-1">
-                  <User size={11} />
-                  <span className="text-[9px] font-black uppercase tracking-wider">Courier Destination</span>
+                <div className="flex items-center justify-between text-stone-400 mb-1">
+                  <div className="flex items-center gap-1">
+                    <User size={11} />
+                    <span className="text-[9px] font-black uppercase tracking-wider">Courier Destination</span>
+                  </div>
+                  <span className="text-[9px] font-black uppercase tracking-wider text-stone-500">
+                    Orders: {deliveryOrderCount} | Pending: {deliveryPendingCount}
+                  </span>
+                </div>
+                <div className="text-[9px] font-black uppercase tracking-wider text-stone-500">
+                  Status: {orderRefs.delivery?.status || (deliveryCart.length > 0 ? "draft" : "idle")}
                 </div>
                 
                 <div className="grid grid-cols-2 gap-1.5">
@@ -673,7 +715,7 @@ export default function POS() {
                     <User size={11} className="absolute left-2.5 top-2 text-stone-400" />
                     <input
                       type="text"
-                      className={`w-full bg-white border ${validationError && !customer.name ? 'border-red-400 bg-red-50/30' : 'border-stone-200'} focus:border-orange-500 rounded-lg pl-7 pr-2 py-1.5 text-[11px] font-medium transition-all outline-none placeholder:text-stone-400`}
+                      className={`w-full bg-white border ${validationError.delivery && !customer.name ? 'border-red-400 bg-red-50/30' : 'border-stone-200'} focus:border-orange-500 rounded-lg pl-7 pr-2 py-1.5 text-[11px] font-medium transition-all outline-none placeholder:text-stone-400`}
                       placeholder="Name"
                       value={customer.name}
                       onChange={(e) => setCustomer({ ...customer, name: e.target.value })}
@@ -683,8 +725,8 @@ export default function POS() {
                     <Phone size={11} className="absolute left-2.5 top-2 text-stone-400" />
                     <input
                       type="text"
-                      className={`w-full bg-white border ${validationError && !customer.phone ? 'border-red-400 bg-red-50/30' : 'border-stone-200'} focus:border-orange-500 rounded-lg pl-7 pr-2 py-1.5 text-[11px] font-medium transition-all outline-none placeholder:text-stone-400`}
-                      placeholder="Phone"
+                      className="w-full bg-white border border-stone-200 focus:border-orange-500 rounded-lg pl-7 pr-2 py-1.5 text-[11px] font-medium transition-all outline-none placeholder:text-stone-400"
+                      placeholder="Phone (optional)"
                       value={customer.phone}
                       onChange={(e) => setCustomer({ ...customer, phone: e.target.value })}
                     />
@@ -695,25 +737,62 @@ export default function POS() {
                   <MapPin size={11} className="absolute left-2.5 top-2 text-stone-400" />
                   <input
                     type="text"
-                    className={`w-full bg-white border ${validationError && !customer.address ? 'border-red-400 bg-red-50/30' : 'border-stone-200'} focus:border-orange-500 rounded-lg pl-7 pr-2 py-1.5 text-[11px] font-medium transition-all outline-none placeholder:text-stone-400`}
+                    className={`w-full bg-white border ${validationError.delivery && !customer.address ? 'border-red-400 bg-red-50/30' : 'border-stone-200'} focus:border-orange-500 rounded-lg pl-7 pr-2 py-1.5 text-[11px] font-medium transition-all outline-none placeholder:text-stone-400`}
                     placeholder="Drop Address Details"
                     value={customer.address}
                     onChange={(e) => setCustomer({ ...customer, address: e.target.value })}
                   />
                 </div>
 
-                {validationError && (
+                {validationError.delivery && (
                   <p className="text-[9px] text-red-600 font-bold bg-red-50 border border-red-100 p-1 rounded">
-                    ⚠️ All fields required.
+                    ⚠️ Name and address are required.
                   </p>
                 )}
               </div>
             )}
 
-            {/* Takeaway Mode Placeholder */}
+            {/* Takeaway Mode Inputs */}
             {mode === "takeaway" && (
-              <div className="py-2 text-center text-[11px] text-stone-400 font-medium">
-                No extra customer configuration required for standard counter pickups.
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-stone-400 mb-1">
+                  <div className="flex items-center gap-1">
+                    <User size={11} />
+                    <span className="text-[9px] font-black uppercase tracking-wider">Pickup Details</span>
+                  </div>
+                  <span className="text-[9px] font-black uppercase tracking-wider text-stone-500">
+                    Orders: {takeawayOrderCount} | Pending: {takeawayPendingCount}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-1.5">
+                  <div className="relative">
+                    <User size={11} className="absolute left-2.5 top-2 text-stone-400" />
+                    <input
+                      type="text"
+                      className={`w-full bg-white border ${validationError.takeaway && !takeawayCustomer.name ? 'border-red-400 bg-red-50/30' : 'border-stone-200'} focus:border-orange-500 rounded-lg pl-7 pr-2 py-1.5 text-[11px] font-medium transition-all outline-none placeholder:text-stone-400`}
+                      placeholder="Customer Name"
+                      value={takeawayCustomer.name}
+                      onChange={(e) => setTakeawayCustomer({ ...takeawayCustomer, name: e.target.value })}
+                    />
+                  </div>
+                  <div className="relative">
+                    <Phone size={11} className="absolute left-2.5 top-2 text-stone-400" />
+                    <input
+                      type="text"
+                      className="w-full bg-white border border-stone-200 focus:border-orange-500 rounded-lg pl-7 pr-2 py-1.5 text-[11px] font-medium transition-all outline-none placeholder:text-stone-400"
+                      placeholder="Phone (optional)"
+                      value={takeawayCustomer.phone}
+                      onChange={(e) => setTakeawayCustomer({ ...takeawayCustomer, phone: e.target.value })}
+                    />
+                  </div>
+                </div>
+
+                {validationError.takeaway && (
+                  <p className="text-[9px] text-red-600 font-bold bg-red-50 border border-red-100 p-1 rounded">
+                    ⚠️ Customer name is required.
+                  </p>
+                )}
               </div>
             )}
           </div>

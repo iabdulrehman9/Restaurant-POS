@@ -37,8 +37,16 @@ router.get("/", authenticate, (req, res) => {
   const values = [];
 
   if (status) {
-    filters.push("status = ?");
-    values.push(status);
+    if (status.includes(",")) {
+      const statuses = status.split(",").map((s) => s.trim()).filter(Boolean);
+      if (statuses.length) {
+        filters.push(`status IN (${statuses.map(() => "?").join(",")})`);
+        values.push(...statuses);
+      }
+    } else {
+      filters.push("status = ?");
+      values.push(status);
+    }
   }
   if (type) {
     filters.push("order_type = ?");

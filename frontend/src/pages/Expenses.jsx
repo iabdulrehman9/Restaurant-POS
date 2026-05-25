@@ -26,6 +26,13 @@ const categories = [
 export default function Expenses() {
   const [expenses, setExpenses] = useState([]);
 
+  const today = new Date();
+  const pad2 = (value) => String(value).padStart(2, "0");
+  const formatDate = (date) =>
+    `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+  const minDate = formatDate(new Date(today.getFullYear(), today.getMonth(), 1));
+  const maxDate = formatDate(today);
+
   const [form, setForm] = useState({
     id: null,
     category: "Rent",
@@ -66,6 +73,11 @@ export default function Expenses() {
     e.preventDefault();
     if (!form.amount || !form.date) {
       setValidationError("Amount and Date values are mandatory fields.");
+      return;
+    }
+
+    if (form.date < minDate || form.date > maxDate) {
+      setValidationError("Expense date must be within the current month and not in the future.");
       return;
     }
     setValidationError("");
@@ -189,6 +201,8 @@ export default function Expenses() {
                 className="w-full bg-neutral-50/60 border border-neutral-200 hover:border-neutral-300 focus:border-orange-500 focus:bg-white px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 outline-none text-neutral-800"
                 value={form.date}
                 onChange={(e) => setForm({ ...form, date: e.target.value })}
+                min={minDate}
+                max={maxDate}
               />
             </div>
 

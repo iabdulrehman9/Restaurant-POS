@@ -5,6 +5,22 @@ import { getDb } from "../db/index.js";
 
 const router = express.Router();
 
+const pad2 = (value) => String(value).padStart(2, "0");
+
+const formatLocalDate = (date) => {
+  return `${date.getFullYear()}-${pad2(date.getMonth() + 1)}-${pad2(date.getDate())}`;
+};
+
+const normalizeDateInput = (value) => {
+  if (!value) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return formatLocalDate(parsed);
+};
+
 const buildDateFilter = (from, to) => {
   const filters = [];
   const values = [];
@@ -16,6 +32,24 @@ const buildDateFilter = (from, to) => {
     filters.push("created_at <= ?");
     values.push(to);
   }
+  return { filters, values };
+};
+
+const buildExpenseDateFilter = (from, to) => {
+  const filters = [];
+  const values = [];
+  const fromDate = normalizeDateInput(from);
+  const toDate = normalizeDateInput(to);
+
+  if (fromDate) {
+    filters.push("date >= ?");
+    values.push(fromDate);
+  }
+  if (toDate) {
+    filters.push("date <= ?");
+    values.push(toDate);
+  }
+
   return { filters, values };
 };
 
@@ -32,15 +66,14 @@ router.get("/summary", authenticate, requirePermission("reports", "view"), (req,
     )
     .get(...values);
 
-  const expenseFilters = [];
-  const expenseValues = [];
-  if (from) { expenseFilters.push("date >= ?"); expenseValues.push(from.slice(0, 10)); }
-  if (to) { expenseFilters.push("date <= ?"); expenseValues.push(to.slice(0, 10)); }
-  const expenseWhere = expenseFilters.length ? `WHERE ${expenseFilters.join(" AND ")}` : "";
+  const expenseFilter = buildExpenseDateFilter(from, to);
+  const expenseWhere = expenseFilter.filters.length
+    ? `WHERE ${expenseFilter.filters.join(" AND ")}`
+    : "";
 
   const expenses = db
     .prepare(`SELECT SUM(amount) as total FROM expenses ${expenseWhere}`)
-    .get(...expenseValues);
+    .get(...expenseFilter.values);
 
   const totalSales = sales.total || 0;
   const totalExpenses = expenses.total || 0;
@@ -77,17 +110,16 @@ router.get("/expenses", authenticate, requirePermission("reports", "view"), (req
   const db = getDb();
   const { from, to } = req.query;
 
-  const filters = [];
-  const values = [];
-  if (from) { filters.push("date >= ?"); values.push(from.slice(0, 10)); }
-  if (to) { filters.push("date <= ?"); values.push(to.slice(0, 10)); }
-  const where = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
+  const expenseFilter = buildExpenseDateFilter(from, to);
+  const where = expenseFilter.filters.length
+    ? `WHERE ${expenseFilter.filters.join(" AND ")}`
+    : "";
 
   const rows = db
     .prepare(
       `SELECT id, date, category, note as description, amount as total FROM expenses ${where} ORDER BY date DESC`
     )
-    .all(...values);
+    .all(...expenseFilter.values);
 
   res.json({ expenses: rows });
 });

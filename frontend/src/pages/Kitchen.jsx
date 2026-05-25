@@ -20,7 +20,7 @@ export default function Kitchen() {
 
   const loadOrders = async () => {
     try {
-      const data = await getOrders();
+      const data = await getOrders({ status: "pending,preparing,ready" });
       setOrders(data.orders || []);
     } catch (err) {
       setOrders([]);
@@ -176,6 +176,11 @@ export default function Kitchen() {
                       </span>
                     </div>
                   ))}
+                  {order.notes && (
+                    <div className="text-[10px] font-semibold text-neutral-500 bg-neutral-50/60 border border-neutral-100 px-2 py-1 rounded-md">
+                      Note: {order.notes}
+                    </div>
+                  )}
                 </div>
 
                 {/* CONTROL INTERFACES BUTTON WRAPPER */}
