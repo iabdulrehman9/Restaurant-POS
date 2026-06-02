@@ -84,8 +84,11 @@ router.get("/", authenticate, requirePermission("expenses", "view"), (req, res) 
 
 router.post("/", authenticate, requirePermission("expenses", "create"), (req, res) => {
   const { category, amount, date, note } = req.body || {};
-  if (!category || !amount || !date) {
+  if (!category || amount === undefined || amount === null || !date) {
     return res.status(400).json({ error: "Category, amount, and date are required" });
+  }
+  if (Number(amount) <= 0) {
+    return res.status(400).json({ error: "Amount must be greater than zero" });
   }
 
   const dateError = validateExpenseDate(date);

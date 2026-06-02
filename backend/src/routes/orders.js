@@ -2,6 +2,7 @@ import express from "express";
 import { authenticate } from "../middleware/auth.js";
 import { getDb } from "../db/index.js";
 import { broadcast } from "../ws.js";
+import { isAllowedOrderStatus } from "../constants/orders.js";
 
 const router = express.Router();
 
@@ -19,6 +20,87 @@ const buildOrderNumber = () => {
   const stamp = new Date().toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
   const rand = Math.floor(100 + Math.random() * 900);
   return `ORD-${stamp}-${rand}`;
+};
+
+const clampLimit = (value, fallback = 100, max = 500) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(Math.max(Math.trunc(parsed), 1), max);
+};
+
+const clampOffset = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed < 0) return 0;
+  return Math.trunc(parsed);
+};
+
+/** Resolve line items from DB catalog — never trust client prices. */
+const resolveOrderItems = (db, items) => {
+  const getProduct = db.prepare(
+    "SELECT id, name, price, active FROM products WHERE id = ?"
+  );
+
+  const resolved = [];
+  for (const item of items) {
+    const productId = Number(item.productId);
+    const qty = Number(item.qty);
+
+    if (!productId || !Number.isFinite(qty) || qty < 1) {
+      throw new Error("Each item must have a valid product and quantity of at least 1");
+    }
+
+    const product = getProduct.get(productId);
+    if (!product) {
+      throw new Error(`Product ${productId} not found`);
+    }
+    if (product.active !== 1) {
+      throw new Error(`Product "${product.name}" is inactive`);
+    }
+    if (Number(product.price) <= 0) {
+      throw new Error(`Product "${product.name}" has invalid price`);
+    }
+
+    const price = Number(product.price);
+    resolved.push({
+      productId: product.id,
+      name: product.name,
+      price,
+      qty,
+      lineTotal: price * qty,
+    });
+  }
+
+  return resolved;
+};
+
+const calculateTotals = ({
+  resolvedItems,
+  taxRate,
+  serviceChargeRate,
+  discountType,
+  discountValue,
+  paidAmount,
+}) => {
+  const subtotal = resolvedItems.reduce((sum, item) => sum + item.lineTotal, 0);
+  const taxAmount = subtotal * (Number(taxRate) / 100);
+  const serviceChargeAmount = subtotal * (Number(serviceChargeRate) / 100);
+
+  let discountAmount = 0;
+  if (discountType === "percentage") {
+    discountAmount = subtotal * (Math.max(0, Number(discountValue)) / 100);
+  } else if (discountType === "fixed") {
+    discountAmount = Math.max(0, Number(discountValue));
+  }
+
+  discountAmount = Math.min(discountAmount, subtotal);
+  const total = subtotal + taxAmount + serviceChargeAmount - discountAmount;
+
+  if (total < 0) {
+    throw new Error("Order total cannot be negative");
+  }
+
+  const changeDue = Number(paidAmount) - total;
+  return { subtotal, taxAmount, serviceChargeAmount, discountAmount, total, changeDue };
 };
 
 router.get("/", authenticate, (req, res) => {
@@ -64,7 +146,7 @@ router.get("/", authenticate, (req, res) => {
   const where = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
   const orders = db
     .prepare(`SELECT * FROM orders ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`)
-    .all(...values, Number(limit), Number(offset));
+    .all(...values, clampLimit(limit), clampOffset(offset));
 
   const orderIds = orders.map((o) => o.id);
   const items = orderIds.length
@@ -109,27 +191,39 @@ router.post("/", authenticate, (req, res) => {
     discountType = "percentage",
     discountValue = 0,
     notes = "",
-    paidAmount = 0
+    paidAmount = 0,
   } = req.body || {};
 
   if (!orderType || items.length === 0) {
     return res.status(400).json({ error: "Order type and items are required" });
   }
 
-  const subtotal = items.reduce((sum, item) => sum + Number(item.price) * Number(item.qty), 0);
-  const taxAmount = subtotal * (Number(taxRate) / 100);
-  const serviceChargeAmount = subtotal * (Number(serviceChargeRate) / 100);
-
-  let discountAmount = 0;
-  if (discountType === "percentage") {
-    discountAmount = subtotal * (Number(discountValue) / 100);
-  } else if (discountType === "fixed") {
-    discountAmount = Number(discountValue);
+  if (!isAllowedOrderStatus(status)) {
+    return res.status(400).json({ error: "Invalid order status" });
   }
 
-  const total = subtotal + taxAmount + serviceChargeAmount - discountAmount;
-  const changeDue = Number(paidAmount) - total;
+  let resolvedItems;
+  try {
+    resolvedItems = resolveOrderItems(db, items);
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
 
+  let totals;
+  try {
+    totals = calculateTotals({
+      resolvedItems,
+      taxRate,
+      serviceChargeRate,
+      discountType,
+      discountValue,
+      paidAmount,
+    });
+  } catch (err) {
+    return res.status(400).json({ error: err.message });
+  }
+
+  const { subtotal, taxAmount, serviceChargeAmount, discountAmount, total, changeDue } = totals;
   const orderNumber = buildOrderNumber();
   const now = new Date().toISOString();
 
@@ -140,48 +234,50 @@ router.post("/", authenticate, (req, res) => {
     "INSERT INTO order_items (order_id, product_id, name, price, qty, total) VALUES (?, ?, ?, ?, ?, ?)"
   );
 
-  const transaction = db.transaction(() => {
-    const result = insertOrder.run(
-      orderNumber,
-      orderType,
-      status,
-      tableNo || null,
-      customer?.name || null,
-      customer?.phone || null,
-      customer?.address || null,
-      subtotal,
-      Number(taxRate),
-      taxAmount,
-      Number(serviceChargeRate),
-      serviceChargeAmount,
-      discountType,
-      Number(discountValue),
-      discountAmount,
-      total,
-      paymentMethod,
-      Number(paidAmount),
-      changeDue,
-      notes,
-      now,
-      now
-    );
-
-    const orderId = result.lastInsertRowid;
-    for (const item of items) {
-      insertItem.run(
-        orderId,
-        item.productId || null,
-        item.name,
-        Number(item.price),
-        Number(item.qty),
-        Number(item.price) * Number(item.qty)
+  let orderId;
+  try {
+    orderId = db.transaction(() => {
+      const result = insertOrder.run(
+        orderNumber,
+        orderType,
+        status,
+        tableNo || null,
+        customer?.name || null,
+        customer?.phone || null,
+        customer?.address || null,
+        subtotal,
+        Number(taxRate),
+        taxAmount,
+        Number(serviceChargeRate),
+        serviceChargeAmount,
+        discountType,
+        Number(discountValue),
+        discountAmount,
+        total,
+        paymentMethod,
+        Number(paidAmount),
+        changeDue,
+        notes,
+        now,
+        now
       );
-    }
 
-    return orderId;
-  });
-
-  const orderId = transaction();
+      const id = result.lastInsertRowid;
+      for (const item of resolvedItems) {
+        insertItem.run(
+          id,
+          item.productId,
+          item.name,
+          item.price,
+          item.qty,
+          item.lineTotal
+        );
+      }
+      return id;
+    })();
+  } catch (err) {
+    return res.status(500).json({ error: "Failed to create order" });
+  }
 
   const fullOrder = db.prepare("SELECT * FROM orders WHERE id = ?").get(orderId);
   const orderItems = db.prepare("SELECT * FROM order_items WHERE order_id = ?").all(orderId);
@@ -207,13 +303,16 @@ router.put("/:id", authenticate, (req, res) => {
     changeDue,
     notes,
     printedKOT,
-    printedReceipt
+    printedReceipt,
   } = req.body || {};
 
   const updates = [];
   const values = [];
 
   if (status) {
+    if (!isAllowedOrderStatus(status)) {
+      return res.status(400).json({ error: "Invalid order status" });
+    }
     updates.push("status = ?");
     values.push(status);
   }
@@ -272,6 +371,9 @@ router.put("/:id/status", authenticate, (req, res) => {
   const { status } = req.body || {};
   if (!status) {
     return res.status(400).json({ error: "Status is required" });
+  }
+  if (!isAllowedOrderStatus(status)) {
+    return res.status(400).json({ error: "Invalid order status" });
   }
 
   db.prepare("UPDATE orders SET status = ?, updated_at = ? WHERE id = ?").run(

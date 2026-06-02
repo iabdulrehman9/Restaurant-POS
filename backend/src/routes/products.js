@@ -1,6 +1,7 @@
 import express from "express";
 import path from "path";
 import fs from "fs";
+import crypto from "crypto";
 import multer from "multer";
 import { config } from "../config.js";
 import { authenticate } from "../middleware/auth.js";
@@ -8,6 +9,9 @@ import { requirePermission } from "../middleware/permissions.js";
 import { getDb } from "../db/index.js";
 
 const router = express.Router();
+
+const ALLOWED_MIMES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const ALLOWED_EXT = new Set([".jpg", ".jpeg", ".png", ".webp"]);
 
 const hasPermission = (db, user, moduleKey, actionKey) => {
   if (user.role === "admin") return true;
@@ -27,12 +31,23 @@ if (!fs.existsSync(productDir)) {
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, productDir),
   filename: (req, file, cb) => {
-    const safeName = `${Date.now()}-${file.originalname.replace(/\s+/g, "-")}`;
-    cb(null, safeName);
+    const ext = path.extname(file.originalname || "").toLowerCase();
+    const safeExt = ALLOWED_EXT.has(ext) ? ext : ".jpg";
+    cb(null, `${Date.now()}-${crypto.randomUUID()}${safeExt}`);
   },
 });
 
-const upload = multer({ storage });
+const upload = multer({
+  storage,
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (ALLOWED_MIMES.has(file.mimetype)) {
+      cb(null, true);
+      return;
+    }
+    cb(new Error("Only JPEG, PNG, and WebP images are allowed"));
+  },
+});
 
 router.get("/", authenticate, (req, res) => {
   const db = getDb();
@@ -82,6 +97,9 @@ router.post(
     if (!name || !category || !price) {
       return res.status(400).json({ error: "Name, category, and price are required" });
     }
+    if (Number(price) <= 0) {
+      return res.status(400).json({ error: "Price must be greater than zero" });
+    }
 
     const imagePath = req.file ? `/uploads/products/${req.file.filename}` : null;
     const now = new Date().toISOString();
@@ -110,7 +128,13 @@ router.put(
 
     if (name) { updates.push("name = ?"); values.push(name); }
     if (category) { updates.push("category = ?"); values.push(category); }
-    if (price !== undefined) { updates.push("price = ?"); values.push(Number(price)); }
+    if (price !== undefined) {
+      if (Number(price) <= 0) {
+        return res.status(400).json({ error: "Price must be greater than zero" });
+      }
+      updates.push("price = ?");
+      values.push(Number(price));
+    }
     if (active !== undefined) { updates.push("active = ?"); values.push(Number(active) ? 1 : 0); }
 
     if (req.file) {
@@ -121,7 +145,7 @@ router.put(
     updates.push("updated_at = ?");
     values.push(new Date().toISOString());
 
-    if (updates.length === 0) {
+    if (updates.length === 1) {
       return res.json({ ok: true });
     }
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { 
   Clock, 
   ChefHat, 
@@ -11,19 +11,22 @@ import {
   Trash2
 } from "lucide-react";
 import { getOrders, updateOrderStatus } from "../api/index.js";
+import { getWsBaseUrl } from "../api/client.js";
 
 export default function Kitchen() {
   const [orders, setOrders] = useState([]);
-  const wsUrl = (import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api")
-    .replace(/^http/, "ws")
-    .replace(/\/api$/, "/ws");
+  const [loadError, setLoadError] = useState("");
+  const reconnectDelay = useRef(1000);
+  const wsRef = useRef(null);
 
   const loadOrders = async () => {
     try {
       const data = await getOrders({ status: "pending,preparing,ready" });
       setOrders(data.orders || []);
+      setLoadError("");
     } catch (err) {
       setOrders([]);
+      setLoadError(err.message || "Unable to load kitchen orders.");
     }
   };
 
@@ -32,20 +35,46 @@ export default function Kitchen() {
   }, []);
 
   useEffect(() => {
-    const socket = new WebSocket(wsUrl);
+    let cancelled = false;
+    let reconnectTimer = null;
 
-    socket.onmessage = () => {
-      loadOrders();
+    const connect = () => {
+      if (cancelled) return;
+
+      const token = localStorage.getItem("pos_token");
+      const wsUrl = `${getWsBaseUrl()}?token=${encodeURIComponent(token || "")}`;
+      const socket = new WebSocket(wsUrl);
+      wsRef.current = socket;
+
+      socket.onopen = () => {
+        reconnectDelay.current = 1000;
+      };
+
+      socket.onmessage = () => {
+        loadOrders();
+      };
+
+      socket.onerror = () => {
+        socket.close();
+      };
+
+      socket.onclose = () => {
+        if (cancelled) return;
+        reconnectTimer = setTimeout(() => {
+          reconnectDelay.current = Math.min(reconnectDelay.current * 2, 30000);
+          connect();
+        }, reconnectDelay.current);
+      };
     };
 
-    socket.onerror = () => {
-      socket.close();
-    };
+    connect();
 
     return () => {
-      socket.close();
+      cancelled = true;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (wsRef.current) wsRef.current.close();
     };
-  }, [wsUrl]);
+  }, []);
 
   const formatElapsed = (createdAt) => {
     if (!createdAt) return "-";
@@ -91,7 +120,6 @@ export default function Kitchen() {
   return (
     <div className="h-screen w-screen bg-neutral-50 pt-2 px-4 pb-4 md:pt-3 md:px-6 md:pb-6 text-neutral-800 antialiased font-sans flex flex-col overflow-hidden">
       
-      {/* FIXED TOP HEADER SECTION */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4 pb-2 border-b border-neutral-200 shrink-0">
         <div className="flex items-center gap-2">
           <span className="p-1.5 bg-orange-500 rounded-lg text-white shadow-sm">
@@ -103,7 +131,6 @@ export default function Kitchen() {
           </div>
         </div>
 
-        {/* COMPACT METRIC COUNTERS */}
         <div className="flex items-center gap-1.5">
           {Object.entries(statusConfigs).map(([key, config]) => (
             <div key={key} className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-white border border-neutral-200 text-neutral-600 shadow-sm">
@@ -114,7 +141,12 @@ export default function Kitchen() {
         </div>
       </div>
 
-      {/* INDEPENDENT SCROLLABLE ORDER SECTION */}
+      {loadError && (
+        <div className="mb-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-xs font-semibold text-rose-700">
+          {loadError}
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto pr-1 pb-2 min-h-0">
         {visibleOrders.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 border border-dashed border-neutral-200 rounded-2xl bg-white">
@@ -130,7 +162,6 @@ export default function Kitchen() {
                   order.status === "pending" ? "border-orange-500 ring-1 ring-orange-500/10" : "border-neutral-200"
                 }`}
               >
-                {/* COMPACT CARD HEADER */}
                 <div className="p-3 border-b border-neutral-100 bg-neutral-50/40 space-y-2">
                   <div className="flex justify-between items-center">
                     <div className="flex items-center gap-1.5">
@@ -146,7 +177,6 @@ export default function Kitchen() {
                     </span>
                   </div>
 
-                  {/* DESTINATION DATA TAGS */}
                   <div className="flex flex-wrap items-center gap-1">
                     <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-orange-50 text-orange-700 text-[10px] font-bold uppercase tracking-wide border border-orange-100">
                       {typeIcons[order.order_type]}
@@ -166,7 +196,6 @@ export default function Kitchen() {
                   </div>
                 </div>
 
-                {/* COMPACT ITEMS SECTION */}
                 <div className="p-3 flex-1 space-y-1">
                   {(order.items || []).map((item, index) => (
                     <div key={index} className="bg-neutral-50/40 border border-neutral-100 px-2.5 py-1.5 rounded-lg flex justify-between items-center">
@@ -183,7 +212,6 @@ export default function Kitchen() {
                   )}
                 </div>
 
-                {/* CONTROL INTERFACES BUTTON WRAPPER */}
                 <div className="p-3 pt-0 gap-1.5 flex flex-col">
                   <div className="flex gap-1.5">
                     <button
@@ -215,7 +243,6 @@ export default function Kitchen() {
                     </button>
                   </div>
 
-                  {/* BOTTOM MANAGEMENT ROW */}
                   <div className="flex gap-1.5">
                     <button
                       type="button"

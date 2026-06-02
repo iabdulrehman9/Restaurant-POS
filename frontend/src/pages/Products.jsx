@@ -15,7 +15,7 @@ import { createProduct, deleteProduct, getProducts, updateProduct } from "../api
 import { getApiBaseUrl } from "../api/client.js";
 
 const initialCategories = ["Burger", "Drinks", "Pizza", "Fries"];
-const placeholderImage = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=500&auto=format&fit=crop&q=60";
+const placeholderImage = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'%3E%3Crect width='200' height='200' fill='%23f5f5f5'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' fill='%23a3a3a3' font-family='Arial' font-size='16'%3ENo Image%3C/text%3E%3C/svg%3E";
 
 export default function Products() {
   const [products, setProducts] = useState([]);

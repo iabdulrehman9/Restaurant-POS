@@ -1,10 +1,12 @@
 import fs from "fs";
 import path from "path";
-import initSqlJs from "sql.js";
+import { fileURLToPath } from "url";
 import bcrypt from "bcryptjs";
+import Database from "better-sqlite3";
 import { config } from "../config.js";
 
-const MIGRATIONS_DIR = path.join(process.cwd(), "src", "db", "migrations");
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const MIGRATIONS_DIR = path.join(__dirname, "migrations");
 
 const MODULES = [
   { key: "dashboard", label: "Dashboard", actions: ["view"] },
@@ -18,14 +20,14 @@ const MODULES = [
 ];
 
 const DEFAULT_SETTINGS = {
-  name: "Crispy House Cafe",
+  name: "Restaurant POS",
   logo: "",
   address: "Main Commercial Market, Block C, Lahore",
   phone: "+92 300 1234567",
-  email: "info@crispyhouse.com",
+  email: "info@restaurantpos.local",
   currency: "PKR",
   timezone: "Asia/Karachi",
-  invoicePrefix: "CH-",
+  invoicePrefix: "RP-",
   invoiceStart: 1001,
   billFormat: "detailed",
   showLogo: true,
@@ -53,11 +55,13 @@ const DEFAULT_SETTINGS = {
   autoLogout: 30,
   sound: true,
   pinLogin: false,
-  activityLog: true
+  activityLog: true,
 };
 
+/** Default admin password for first-run seed only — must be changed on first login. */
+export const DEFAULT_ADMIN_PASSWORD = "ChangeMe123!";
+
 let dbInstance = null;
-let sqlModule = null;
 
 const ensureDirectories = () => {
   const dataDir = path.dirname(config.dbPath);
@@ -115,7 +119,7 @@ const seedAdminUser = async (db) => {
   if (exists.count > 0) return;
 
   const now = new Date().toISOString();
-  const passwordHash = await bcrypt.hash("admin123", 10);
+  const passwordHash = await bcrypt.hash(DEFAULT_ADMIN_PASSWORD, 10);
   const result = db
     .prepare(
       "INSERT INTO users (name, email, password_hash, role, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
@@ -144,156 +148,19 @@ const seedSettings = (db) => {
   );
 };
 
-const loadSqlModule = async () => {
-  if (sqlModule) return sqlModule;
-  sqlModule = await initSqlJs({
-    locateFile: (file) => path.join(process.cwd(), "node_modules", "sql.js", "dist", file)
-  });
-  return sqlModule;
-};
-
-const normalizeParams = (params) => {
-  if (params.length === 1 && Array.isArray(params[0])) {
-    return params[0];
-  }
-  return params;
-};
-
-class StatementWrapper {
-  constructor(db, sql, persist, shouldPersist) {
-    this.db = db;
-    this.sql = sql;
-    this.persist = persist;
-    this.shouldPersist = shouldPersist;
-  }
-
-  run(...params) {
-    const stmt = this.db.prepare(this.sql);
-    const values = normalizeParams(params);
-    if (values.length) {
-      stmt.bind(values);
-    }
-    stmt.step();
-    stmt.free();
-
-    const changes = this.db.getRowsModified();
-    let lastInsertRowid = 0;
-    try {
-      const result = this.db.exec("SELECT last_insert_rowid() AS id");
-      if (result.length && result[0].values.length) {
-        lastInsertRowid = result[0].values[0][0];
-      }
-    } catch (err) {
-      lastInsertRowid = 0;
-    }
-
-    if (this.persist && this.shouldPersist()) {
-      this.persist();
-    }
-    return { changes, lastInsertRowid };
-  }
-
-  get(...params) {
-    const stmt = this.db.prepare(this.sql);
-    const values = normalizeParams(params);
-    if (values.length) {
-      stmt.bind(values);
-    }
-    const hasRow = stmt.step();
-    const row = hasRow ? stmt.getAsObject() : undefined;
-    stmt.free();
-    if (!row || Object.keys(row).length === 0) return undefined;
-    return row;
-  }
-
-  all(...params) {
-    const stmt = this.db.prepare(this.sql);
-    const values = normalizeParams(params);
-    if (values.length) {
-      stmt.bind(values);
-    }
-    const rows = [];
-    while (stmt.step()) {
-      rows.push(stmt.getAsObject());
-    }
-    stmt.free();
-    return rows;
-  }
-}
-
-class SqlJsDatabase {
-  constructor(db, persist) {
-    this.db = db;
-    this.persist = persist;
-    this.transactionDepth = 0;
-  }
-
-  shouldPersist() {
-    return this.transactionDepth === 0;
-  }
-
-  exec(sql) {
-    const result = this.db.exec(sql);
-    if (this.persist && this.shouldPersist()) {
-      this.persist();
-    }
-    return result;
-  }
-
-  prepare(sql) {
-    return new StatementWrapper(this.db, sql, this.persist, () => this.shouldPersist());
-  }
-
-  transaction(fn) {
-    return (...args) => {
-      let committed = false;
-      this.db.exec("BEGIN");
-      this.transactionDepth += 1;
-      try {
-        const result = fn(...args);
-        this.db.exec("COMMIT");
-        committed = true;
-        return result;
-      } catch (err) {
-        try {
-          this.db.exec("ROLLBACK");
-        } catch (rollbackErr) {
-          // ignore rollback errors when no transaction is active
-        }
-        throw err;
-      } finally {
-        this.transactionDepth = Math.max(0, this.transactionDepth - 1);
-        if (committed && this.persist && this.shouldPersist()) {
-          this.persist();
-        }
-      }
-    };
-  }
-}
-
-const loadDatabase = async () => {
-  ensureDirectories();
-  const SQL = await loadSqlModule();
-  if (fs.existsSync(config.dbPath)) {
-    const fileBuffer = fs.readFileSync(config.dbPath);
-    return new SQL.Database(fileBuffer);
-  }
-  return new SQL.Database();
-};
-
-const createPersist = (db) => () => {
-  const data = db.export();
-  fs.writeFileSync(config.dbPath, Buffer.from(data));
+const configurePragmas = (db) => {
+  db.pragma("foreign_keys = ON");
+  db.pragma("journal_mode = WAL");
+  db.pragma("synchronous = NORMAL");
+  db.pragma("busy_timeout = 5000");
 };
 
 export const initDb = async () => {
   if (dbInstance) return dbInstance;
 
-  const rawDb = await loadDatabase();
-  const persist = createPersist(rawDb);
-  const db = new SqlJsDatabase(rawDb, persist);
-
-  rawDb.exec("PRAGMA foreign_keys = ON;");
+  ensureDirectories();
+  const db = new Database(config.dbPath);
+  configurePragmas(db);
 
   applyMigrations(db);
   seedModules(db);
@@ -309,6 +176,23 @@ export const getDb = () => {
     throw new Error("Database has not been initialized");
   }
   return dbInstance;
+};
+
+export const closeDb = () => {
+  if (!dbInstance) return;
+  try {
+    dbInstance.pragma("wal_checkpoint(TRUNCATE)");
+  } catch {
+    // ignore checkpoint errors during shutdown
+  }
+  dbInstance.close();
+  dbInstance = null;
+};
+
+export const runIntegrityCheck = () => {
+  const db = getDb();
+  const row = db.pragma("integrity_check", { simple: true });
+  return row;
 };
 
 export const listModules = () => MODULES;

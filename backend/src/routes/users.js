@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { authenticate } from "../middleware/auth.js";
 import { requirePermission } from "../middleware/permissions.js";
 import { getDb } from "../db/index.js";
+import { isAllowedRole, normalizeRole } from "../constants/roles.js";
 
 const router = express.Router();
 
@@ -20,40 +21,48 @@ router.post("/", authenticate, requirePermission("users", "create"), (req, res) 
     return res.status(400).json({ error: "Name, email, and password are required" });
   }
 
+  const normalizedRole = normalizeRole(role);
+  if (!isAllowedRole(normalizedRole)) {
+    return res.status(400).json({ error: "Invalid role. Allowed: admin, cashier, kitchen" });
+  }
+
   const db = getDb();
   const now = new Date().toISOString();
   const hash = bcrypt.hashSync(password, 10);
 
   try {
-    const result = db
-      .prepare(
-        "INSERT INTO users (name, email, password_hash, role, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
-      )
-      .run(name, email, hash, role, isActive ? 1 : 0, now, now);
+    const userId = db.transaction(() => {
+      const result = db
+        .prepare(
+          "INSERT INTO users (name, email, password_hash, role, is_active, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+        )
+        .run(name, email, hash, normalizedRole, isActive ? 1 : 0, now, now);
 
-    const userId = result.lastInsertRowid;
-    const insertPermission = db.prepare(
-      "INSERT OR REPLACE INTO user_permissions (user_id, module_key, action_key, allowed) VALUES (?, ?, ?, ?)"
-    );
+      const id = result.lastInsertRowid;
+      const insertPermission = db.prepare(
+        "INSERT OR REPLACE INTO user_permissions (user_id, module_key, action_key, allowed) VALUES (?, ?, ?, ?)"
+      );
 
-    const transaction = db.transaction((items) => {
-      for (const item of items) {
+      for (const item of permissions) {
         if (!item.moduleKey) continue;
         if (item.actions && Array.isArray(item.actions)) {
           for (const actionKey of item.actions) {
-            insertPermission.run(userId, item.moduleKey, actionKey, item.allowed ? 1 : 0);
+            insertPermission.run(id, item.moduleKey, actionKey, item.allowed ? 1 : 0);
           }
         } else if (item.actionKey) {
-          insertPermission.run(userId, item.moduleKey, item.actionKey, item.allowed ? 1 : 0);
+          insertPermission.run(id, item.moduleKey, item.actionKey, item.allowed ? 1 : 0);
         }
       }
-    });
 
-    transaction(permissions);
+      return id;
+    })();
 
     res.status(201).json({ id: userId });
   } catch (err) {
-    return res.status(400).json({ error: "Email already exists" });
+    if (String(err.message || "").includes("UNIQUE")) {
+      return res.status(400).json({ error: "Email already exists" });
+    }
+    return res.status(500).json({ error: "Failed to create user" });
   }
 });
 
@@ -70,7 +79,14 @@ router.put("/:id", authenticate, requirePermission("users", "update"), (req, res
 
   if (name) { updates.push("name = ?"); values.push(name); }
   if (email) { updates.push("email = ?"); values.push(email); }
-  if (role) { updates.push("role = ?"); values.push(role); }
+  if (role) {
+    const normalizedRole = normalizeRole(role);
+    if (!isAllowedRole(normalizedRole)) {
+      return res.status(400).json({ error: "Invalid role. Allowed: admin, cashier, kitchen" });
+    }
+    updates.push("role = ?");
+    values.push(normalizedRole);
+  }
   if (typeof isActive === "boolean") { updates.push("is_active = ?"); values.push(isActive ? 1 : 0); }
   if (password) {
     updates.push("password_hash = ?");
@@ -80,7 +96,7 @@ router.put("/:id", authenticate, requirePermission("users", "update"), (req, res
   updates.push("updated_at = ?");
   values.push(new Date().toISOString());
 
-  if (updates.length === 0) {
+  if (updates.length === 1) {
     return res.json({ ok: true });
   }
 

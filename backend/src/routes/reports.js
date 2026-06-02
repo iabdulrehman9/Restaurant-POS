@@ -21,15 +21,15 @@ const normalizeDateInput = (value) => {
   return formatLocalDate(parsed);
 };
 
-const buildDateFilter = (from, to) => {
+const buildDateFilter = (from, to, column = "created_at") => {
   const filters = [];
   const values = [];
   if (from) {
-    filters.push("created_at >= ?");
+    filters.push(`${column} >= ?`);
     values.push(from);
   }
   if (to) {
-    filters.push("created_at <= ?");
+    filters.push(`${column} <= ?`);
     values.push(to);
   }
   return { filters, values };
@@ -127,7 +127,7 @@ router.get("/expenses", authenticate, requirePermission("reports", "view"), (req
 router.get("/products", authenticate, requirePermission("reports", "view"), (req, res) => {
   const db = getDb();
   const { from, to } = req.query;
-  const { filters, values } = buildDateFilter(from, to);
+  const { filters, values } = buildDateFilter(from, to, "o.created_at");
   const where = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
 
   const rows = db

@@ -1,4 +1,21 @@
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api";
+const getInjectedApiBase = () => {
+  if (typeof globalThis.__POS_API_BASE__ === "string" && globalThis.__POS_API_BASE__) {
+    return globalThis.__POS_API_BASE__;
+  }
+  if (typeof window !== "undefined" && window.posDesktop?.getApiBaseUrl) {
+    return window.posDesktop.getApiBaseUrl();
+  }
+  return import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:5000/api";
+};
+
+export const getApiBaseUrl = () => getInjectedApiBase();
+
+export const getWsBaseUrl = () => {
+  if (typeof globalThis.__POS_WS__ === "string" && globalThis.__POS_WS__) {
+    return globalThis.__POS_WS__;
+  }
+  return getInjectedApiBase().replace(/^http/, "ws").replace(/\/api$/, "/ws");
+};
 
 const getToken = () => localStorage.getItem("pos_token");
 
@@ -18,7 +35,7 @@ const buildHeaders = (options = {}) => {
 };
 
 export const apiRequest = async (path, options = {}) => {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
+  const response = await fetch(`${getInjectedApiBase()}${path}`, {
     ...options,
     headers: buildHeaders(options),
   });
@@ -33,5 +50,3 @@ export const apiRequest = async (path, options = {}) => {
 
   return data;
 };
-
-export const getApiBaseUrl = () => API_BASE_URL;

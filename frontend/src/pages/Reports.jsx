@@ -18,6 +18,7 @@ import {
   getReportSales,
   getReportSummary
 } from "../api/index.js";
+import { escapeHtml } from "../utils/escapeHtml.js";
 
 export default function Reports() {
   const [tab, setTab] = useState("sales");
@@ -119,7 +120,7 @@ export default function Reports() {
           .map(
             (row) => `
               <tr>
-                <td>${row.date}</td>
+                <td>${escapeHtml(row.date)}</td>
                 <td style="text-align:center;">${row.ordersCount}</td>
                 <td style="text-align:right;">RS ${formatMoney(row.subtotal)}</td>
                 <td style="text-align:right;">RS ${formatMoney(row.tax)}</td>
@@ -135,9 +136,9 @@ export default function Reports() {
           .map(
             (row) => `
               <tr>
-                <td>${row.id || ""}<div style="font-size:11px; color:#666;">${row.date || ""}</div></td>
-                <td>${row.category || ""}</td>
-                <td>${row.description || ""}</td>
+                <td>${escapeHtml(row.id || "")}<div style="font-size:11px; color:#666;">${escapeHtml(row.date || "")}</div></td>
+                <td>${escapeHtml(row.category || "")}</td>
+                <td>${escapeHtml(row.description || "")}</td>
                 <td style="text-align:right;">RS ${formatMoney(row.total)}</td>
               </tr>
             `
@@ -150,7 +151,7 @@ export default function Reports() {
           .map(
             (row) => `
               <tr>
-                <td>${row.name || ""}</td>
+                <td>${escapeHtml(row.name || "")}</td>
                 <td style="text-align:right;">${row.sold || 0}</td>
                 <td style="text-align:right;">RS ${formatMoney(row.revenue)}</td>
               </tr>

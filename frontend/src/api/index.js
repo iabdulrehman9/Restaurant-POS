@@ -105,6 +105,15 @@ export const updateSettings = (payload) =>
     body: JSON.stringify(payload),
   });
 
+export const backupDatabase = () =>
+  apiRequest("/settings/backup", { method: "POST" });
+
+export const restoreDatabase = (backupPath) =>
+  apiRequest("/settings/restore", {
+    method: "POST",
+    body: JSON.stringify({ backupPath }),
+  });
+
 export const getModules = () => apiRequest("/permissions/modules");
 
 export const getUserPermissions = (userId) =>

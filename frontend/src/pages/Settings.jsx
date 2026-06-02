@@ -4,11 +4,31 @@ import {
   Armchair, Utensils, ShieldCheck, Settings2, 
   Database, UserCheck, Save, RefreshCw, Upload
 } from "lucide-react";
-import { getSettings, updateSettings } from "../api/index.js";
+import { getSettings, updateSettings, backupDatabase, restoreDatabase } from "../api/index.js";
 
 export default function Settings() {
   const [tab, setTab] = useState("business");
-  const [isSaving, setIsSaving] = useState(false);
+  const [backupMessage, setBackupMessage] = useState("");
+
+  const handleBackup = async () => {
+    try {
+      const result = await backupDatabase();
+      setBackupMessage(`Backup saved: ${result.filename}`);
+    } catch (err) {
+      setBackupMessage(err.message || "Backup failed");
+    }
+  };
+
+  const handleRestore = async () => {
+    const backupPath = window.prompt("Enter full path to backup file in the backups folder:");
+    if (!backupPath) return;
+    try {
+      const result = await restoreDatabase(backupPath);
+      setBackupMessage(result.message || "Restore complete. Restart the application.");
+    } catch (err) {
+      setBackupMessage(err.message || "Restore failed");
+    }
+  };
 
   const [settings, setSettings] = useState({
     name: "Crispy House Café",
@@ -396,11 +416,22 @@ export default function Settings() {
               <p className="text-xs text-neutral-500 leading-relaxed">
                 Exporting your snapshot captures entire transactional journals, physical logs, and stock indices into a clean, unencrypted binary manifest file.
               </p>
+              {backupMessage && (
+                <p className="text-xs font-semibold text-neutral-600">{backupMessage}</p>
+              )}
               <div className="flex flex-col sm:flex-row gap-3 pt-2">
-                <button className="bg-neutral-900 hover:bg-neutral-950 text-white font-semibold text-xs px-4 py-2.5 rounded-xl shadow-sm transition-all active:scale-[0.98]">
+                <button
+                  type="button"
+                  onClick={handleBackup}
+                  className="bg-neutral-900 hover:bg-neutral-950 text-white font-semibold text-xs px-4 py-2.5 rounded-xl shadow-sm transition-all active:scale-[0.98]"
+                >
                   Export Local SQL Dump File
                 </button>
-                <button className="bg-white hover:bg-neutral-50 text-neutral-700 font-semibold text-xs px-4 py-2.5 rounded-xl border border-neutral-200 shadow-sm transition-all active:scale-[0.98]">
+                <button
+                  type="button"
+                  onClick={handleRestore}
+                  className="bg-white hover:bg-neutral-50 text-neutral-700 font-semibold text-xs px-4 py-2.5 rounded-xl border border-neutral-200 shadow-sm transition-all active:scale-[0.98]"
+                >
                   Restore Target Backup Manifest
                 </button>
               </div>

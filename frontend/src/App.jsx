@@ -8,8 +8,7 @@ import Kitchen from "./pages/Kitchen";
 import Products from "./pages/Products";
 import Expenses from "./pages/Expenses";
 import Reports from "./pages/Reports";
-// FIX: Changed "Setting" to "Settings" to match standard page naming conventions
-import Settings from "./pages/Settings"; 
+import Settings from "./pages/Settings";
 import SignUp from "./pages/SignUp";
 
 const RequireAuth = ({ children }) => {
@@ -19,6 +18,15 @@ const RequireAuth = ({ children }) => {
   }
   if (!user) {
     return <Navigate to="/signup" replace />;
+  }
+  return children;
+};
+
+const RequirePermission = ({ moduleKey, children }) => {
+  const { can, loading } = useAuth();
+  if (loading) return null;
+  if (!can(moduleKey, "view")) {
+    return <Navigate to="/" replace />;
   }
   return children;
 };
@@ -35,14 +43,62 @@ export default function App() {
             </RequireAuth>
           }
         >
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/pos" element={<POS />} />
-          <Route path="/kitchen" element={<Kitchen />} />
-          <Route path="/products" element={<Products />} />
-          <Route path="/expenses" element={<Expenses />} />
-          <Route path="/reports" element={<Reports />} />
-          {/* FIX: Using the matching pluralized <Settings /> element */}
-          <Route path="/settings" element={<Settings />} />
+          <Route
+            path="/"
+            element={
+              <RequirePermission moduleKey="dashboard">
+                <Dashboard />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/pos"
+            element={
+              <RequirePermission moduleKey="pos">
+                <POS />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/kitchen"
+            element={
+              <RequirePermission moduleKey="kitchen">
+                <Kitchen />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/products"
+            element={
+              <RequirePermission moduleKey="products">
+                <Products />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/expenses"
+            element={
+              <RequirePermission moduleKey="expenses">
+                <Expenses />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/reports"
+            element={
+              <RequirePermission moduleKey="reports">
+                <Reports />
+              </RequirePermission>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <RequirePermission moduleKey="settings">
+                <Settings />
+              </RequirePermission>
+            }
+          />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

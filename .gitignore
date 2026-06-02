@@ -18,6 +18,8 @@ pnpm-debug.log*
 # Build
 frontend/dist/
 frontend/.vite/
+release/
+dist-electron/
 
 # Backend data
 backend/data/

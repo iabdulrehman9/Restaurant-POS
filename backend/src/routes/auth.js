@@ -1,11 +1,20 @@
 import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import rateLimit from "express-rate-limit";
 import { config } from "../config.js";
-import { getDb, listModules } from "../db/index.js";
+import { getDb, listModules, DEFAULT_ADMIN_PASSWORD } from "../db/index.js";
 import { authenticate } from "../middleware/auth.js";
 
 const router = express.Router();
+
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "Too many login attempts. Try again in 15 minutes." },
+});
 
 const getUserPermissions = (db, user) => {
   if (user.role === "admin") {
@@ -35,7 +44,7 @@ const getUserPermissions = (db, user) => {
   }));
 };
 
-router.post("/login", (req, res) => {
+router.post("/login", loginLimiter, (req, res) => {
   const { email, password } = req.body || {};
   if (!email || !password) {
     return res.status(400).json({ error: "Email and password are required" });
@@ -55,6 +64,8 @@ router.post("/login", (req, res) => {
     return res.status(401).json({ error: "Invalid credentials" });
   }
 
+  const requirePasswordChange = bcrypt.compareSync(DEFAULT_ADMIN_PASSWORD, user.password_hash);
+
   const token = jwt.sign(
     { sub: user.id, role: user.role },
     config.jwtSecret,
@@ -67,6 +78,7 @@ router.post("/login", (req, res) => {
     token,
     user: { id: user.id, name: user.name, email: user.email, role: user.role },
     permissions,
+    requirePasswordChange,
   });
 });
 

@@ -24,6 +24,7 @@ import {
   markOrderReceipt,
   updateOrder
 } from "../api/index.js";
+import { escapeHtml } from "../utils/escapeHtml.js";
 
 const POS_STATE_KEY = "pos_state";
 
@@ -315,14 +316,14 @@ export default function POS() {
         </style>
       </head>
       <body>
-        <div class="text-center header">${storeName}</div>
+        <div class="text-center header">${escapeHtml(storeName)}</div>
         <div class="text-center bold" style="font-size: 12px; text-transform: uppercase;">Kitchen Ticket</div>
         <div class="text-center bold" style="font-size: 12px; background: #000; color: #fff; padding: 2px 0; margin-top: 4px;">KITCHEN COPY</div>
         <div class="divider"></div>
-        <div><strong>Time:</strong> ${currentDate}</div>
-        <div><strong>KOT ID:</strong> ${orderRef.orderNumber}</div>
-        <div><strong>Type:</strong> ${mode.toUpperCase()}</div>
-        ${mode === "dine-in" ? `<div><strong>Table:</strong> ${activeTable}</div>` : ""}
+        <div><strong>Time:</strong> ${escapeHtml(currentDate)}</div>
+        <div><strong>KOT ID:</strong> ${escapeHtml(orderRef.orderNumber)}</div>
+        <div><strong>Type:</strong> ${escapeHtml(mode.toUpperCase())}</div>
+        ${mode === "dine-in" ? `<div><strong>Table:</strong> ${escapeHtml(activeTable)}</div>` : ""}
         <div class="divider"></div>
         
         <div class="bold" style="display: flex; justify-content: space-between;">
@@ -332,13 +333,13 @@ export default function POS() {
 
         ${cart.map((i) => `
           <div class="kot-row">
-            <span class="bold">[ ${i.qty} ] &times; ${i.name}</span>
+            <span class="bold">[ ${i.qty} ] &times; ${escapeHtml(i.name)}</span>
           </div>
         `).join("")}
 
         <div class="divider"></div>
-        ${activeCustomer?.name ? `<div><strong>Cust:</strong> ${activeCustomer.name}</div>` : ""}
-        ${activeCustomer?.phone ? `<div><strong>Phone:</strong> ${activeCustomer.phone}</div>` : ""}
+        ${activeCustomer?.name ? `<div><strong>Cust:</strong> ${escapeHtml(activeCustomer.name)}</div>` : ""}
+        ${activeCustomer?.phone ? `<div><strong>Phone:</strong> ${escapeHtml(activeCustomer.phone)}</div>` : ""}
         <script>
           window.onload = function() {
             setTimeout(function() { window.print(); window.close(); }, 300);
@@ -406,14 +407,14 @@ export default function POS() {
         </style>
       </head>
       <body>
-        <div class="text-center header">${storeName}</div>
-        ${storeAddress ? `<div class="text-center" style="font-size: 12px;">${storeAddress}</div>` : ""}
-        ${storePhone ? `<div class="text-center" style="font-size: 12px;">${storePhone}</div>` : ""}
+        <div class="text-center header">${escapeHtml(storeName)}</div>
+        ${storeAddress ? `<div class="text-center" style="font-size: 12px;">${escapeHtml(storeAddress)}</div>` : ""}
+        ${storePhone ? `<div class="text-center" style="font-size: 12px;">${escapeHtml(storePhone)}</div>` : ""}
         <div class="divider"></div>
-        <div><strong>Date:</strong> ${currentDate}</div>
-        <div><strong>Order ID:</strong> ${orderRef.orderNumber}</div>
-        <div><strong>Type:</strong> ${mode.toUpperCase()}</div>
-        ${mode === "dine-in" ? `<div><strong>Table:</strong> ${activeTable}</div>` : ""}
+        <div><strong>Date:</strong> ${escapeHtml(currentDate)}</div>
+        <div><strong>Order ID:</strong> ${escapeHtml(orderRef.orderNumber)}</div>
+        <div><strong>Type:</strong> ${escapeHtml(mode.toUpperCase())}</div>
+        ${mode === "dine-in" ? `<div><strong>Table:</strong> ${escapeHtml(activeTable)}</div>` : ""}
         <div class="divider"></div>
         
         <div class="bold" style="display: flex; justify-content: space-between;">
@@ -424,7 +425,7 @@ export default function POS() {
 
         ${cart.map((i) => `
           <div class="item-row">
-            <div class="bold">${i.name}</div>
+            <div class="bold">${escapeHtml(i.name)}</div>
             <div class="item-details">
               <span>${i.qty} x Rs ${i.price}</span>
               <span>Rs ${i.qty * i.price}</span>

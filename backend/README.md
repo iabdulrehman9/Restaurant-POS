@@ -7,10 +7,13 @@
 3. Start the server:
    - `npm run dev`
 
-## Default Admin
+## Default Admin (first run only)
 - Email: `admin@pos.local`
-- Password: `admin123`
+- Password: `ChangeMe123!`
+- You will be prompted to change this password on first login.
 
 ## Notes
-- SQLite database is stored at `DB_PATH` (default `./data/pos.sqlite`).
+- SQLite database uses **better-sqlite3** with WAL mode.
+- Default dev DB path: `./data/pos.sqlite`
+- Packaged desktop app stores data in `%APPDATA%/Restaurant POS/`
 - Uploaded product images are stored under `UPLOAD_DIR` (default `./uploads`).

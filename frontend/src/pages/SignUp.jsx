@@ -31,7 +31,12 @@ export default function SignUp() {
     setError("");
 
     login(form.email, form.password)
-      .then(() => {
+      .then((data) => {
+        if (data.requirePasswordChange) {
+          alert("Default password detected. Please change your password in Settings > Users before continuing.");
+          navigate("/settings");
+          return;
+        }
         navigate("/");
       })
       .catch((err) => {
