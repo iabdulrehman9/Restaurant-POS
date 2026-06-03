@@ -110,7 +110,8 @@ const createMainWindow = async ({ port, loadUrl, apiPort }) => {
     show: false,
     title: "Restaurant POS",
     webPreferences: {
-      preload: path.join(__dirname, "preload.js"),
+      preload: path.join(__dirname, "preload.cjs"),
+      additionalArguments: [`--pos-api-port=${apiPort}`],
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
@@ -126,9 +127,12 @@ const createMainWindow = async ({ port, loadUrl, apiPort }) => {
   const wsUrl = `ws://127.0.0.1:${apiPort}/ws`;
 
   mainWindow.webContents.on("did-finish-load", () => {
+    // Backup injection if preload port arg was missed
     mainWindow.webContents.executeJavaScript(`
-      globalThis.__POS_API_BASE__ = ${JSON.stringify(apiBase)};
-      globalThis.__POS_WS__ = ${JSON.stringify(wsUrl)};
+      if (!globalThis.__POS_API_BASE__) {
+        globalThis.__POS_API_BASE__ = ${JSON.stringify(apiBase)};
+        globalThis.__POS_WS__ = ${JSON.stringify(wsUrl)};
+      }
       globalThis.__POS_VERSION__ = ${JSON.stringify(app.getVersion())};
       globalThis.__POS_LOG_PATH__ = ${JSON.stringify(path.join(paths.logDir, "main.log"))};
     `);

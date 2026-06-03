@@ -33,22 +33,21 @@ const ensureSecretsFile = () => {
       const parsed = JSON.parse(fs.readFileSync(secretsPath, "utf-8"));
       if (parsed.jwtSecret) {
         runtimeConfig.jwtSecret = parsed.jwtSecret;
+        runtimeConfig.secretsPath = secretsPath;
         return runtimeConfig.jwtSecret;
       }
     } catch {
-      // fall through to regenerate
+      console.warn("[auth] .secrets.json is corrupted — generating a new secret");
     }
   }
 
-  if (runtimeConfig.isPackaged) {
-    throw new Error("JWT secret is missing. Delete .secrets.json only if you intend to reset auth.");
-  }
-
+  // First run (dev or packaged): create a persistent secret in userData
   const jwtSecret = crypto.randomBytes(32).toString("hex");
   fs.mkdirSync(path.dirname(secretsPath), { recursive: true });
   fs.writeFileSync(secretsPath, JSON.stringify({ jwtSecret }, null, 2), "utf-8");
   runtimeConfig.jwtSecret = jwtSecret;
   runtimeConfig.secretsPath = secretsPath;
+  console.log("[auth] JWT secret initialized at", secretsPath);
   return jwtSecret;
 };
 

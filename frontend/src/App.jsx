@@ -14,7 +14,11 @@ import SignUp from "./pages/SignUp";
 const RequireAuth = ({ children }) => {
   const { user, loading } = useAuth();
   if (loading) {
-    return null;
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-neutral-50 text-sm font-semibold text-neutral-500">
+        Loading session...
+      </div>
+    );
   }
   if (!user) {
     return <Navigate to="/signup" replace />;

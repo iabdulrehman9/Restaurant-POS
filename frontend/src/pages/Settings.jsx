@@ -8,6 +8,7 @@ import { getSettings, updateSettings, backupDatabase, restoreDatabase } from "..
 
 export default function Settings() {
   const [tab, setTab] = useState("business");
+  const [isSaving, setIsSaving] = useState(false);
   const [backupMessage, setBackupMessage] = useState("");
 
   const handleBackup = async () => {
