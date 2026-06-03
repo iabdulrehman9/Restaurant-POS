@@ -1,15 +1,21 @@
 import http from "http";
 import path from "path";
 import { fileURLToPath } from "url";
-import app from "./app.js";
-import { config } from "./config.js";
+import { config, configure } from "./config.js";
 import { initDb, closeDb, runIntegrityCheck } from "./db/index.js";
 import { createWebSocketServer } from "./ws.js";
 
 export const startServer = async (options = {}) => {
   if (options.config) {
-    const { configure } = await import("./config.js");
     configure(options.config);
+  }
+
+  // Import app AFTER configure() so routes see correct uploadDir / paths
+  const { default: app, registerFrontendStatic } = await import("./app.js");
+
+  const frontendRegistered = registerFrontendStatic(config.frontendDir);
+  if (config.frontendDir && !frontendRegistered) {
+    console.warn("[server] Frontend static files could not be registered");
   }
 
   await initDb();
@@ -37,6 +43,7 @@ export const startServer = async (options = {}) => {
   const port = typeof address === "object" && address ? address.port : requestedPort;
 
   console.log(`POS backend running on http://${host}:${port}`);
+  console.log(`[server] frontendDir: ${config.frontendDir || "(none)"}`);
 
   return {
     server,

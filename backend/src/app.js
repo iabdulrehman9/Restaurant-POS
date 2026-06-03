@@ -45,15 +45,44 @@ app.use("/api/expenses", expenseRoutes);
 app.use("/api/reports", reportRoutes);
 app.use("/api/settings", settingsRoutes);
 
-if (config.frontendDir && fs.existsSync(config.frontendDir)) {
-  app.use(express.static(config.frontendDir));
+/**
+ * Must run AFTER configure() sets config.frontendDir (not at module import time).
+ * Returns true when static + SPA fallback were registered.
+ */
+export const registerFrontendStatic = (frontendDir) => {
+  if (!frontendDir) {
+    console.warn("[frontend] No frontendDir configured — skipping static serve");
+    return false;
+  }
+
+  const resolved = path.resolve(frontendDir);
+  const indexHtml = path.join(resolved, "index.html");
+  const indexExists = fs.existsSync(indexHtml);
+
+  console.log("[frontend] frontendDir:", resolved);
+  console.log("[frontend] index.html exists:", indexExists);
+
+  if (!indexExists) {
+    console.error("[frontend] index.html missing — UI will not load");
+    return false;
+  }
+
+  app.use(express.static(resolved));
+
   app.get("*", (req, res, next) => {
-    if (req.path.startsWith("/api") || req.path.startsWith("/uploads") || req.path.startsWith("/ws")) {
+    if (
+      req.path.startsWith("/api") ||
+      req.path.startsWith("/uploads") ||
+      req.path.startsWith("/ws")
+    ) {
       return next();
     }
-    res.sendFile(path.join(config.frontendDir, "index.html"));
+    res.sendFile(indexHtml);
   });
-}
+
+  console.log("[frontend] Static + SPA fallback registered");
+  return true;
+};
 
 app.use(errorHandler);
 

@@ -12,10 +12,19 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const getPaths = () => {
   const appRoot = app.getAppPath();
+  const asarDist = path.join(appRoot, "frontend", "dist");
+  const unpackedRoot = appRoot.endsWith(".asar")
+    ? appRoot.replace(/\.asar$/, ".asar.unpacked")
+    : appRoot;
+  const unpackedDist = path.join(unpackedRoot, "frontend", "dist");
+  const frontendDist = fs.existsSync(path.join(unpackedDist, "index.html"))
+    ? unpackedDist
+    : asarDist;
+
   return {
     rootDir: appRoot,
     backendDir: path.join(appRoot, "backend"),
-    frontendDist: path.join(appRoot, "frontend", "dist"),
+    frontendDist,
   };
 };
 
@@ -141,6 +150,12 @@ const createMainWindow = async ({ port, loadUrl, apiPort }) => {
     }
   });
 
+  mainWindow.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL) => {
+    log.error("Page failed to load", { errorCode, errorDescription, validatedURL, loadUrl });
+  });
+
+  log.info("Loading window URL", { loadUrl, apiPort });
+
   await mainWindow.loadURL(loadUrl);
 
   mainWindow.once("ready-to-show", () => {
@@ -218,8 +233,18 @@ const bootstrap = async () => {
     });
   } else {
     backendHandle = await startEmbeddedBackend(paths);
-    const loadUrl = `http://127.0.0.1:${backendHandle.port}`;
-    log.info(`Backend ready on port ${backendHandle.port}`);
+    const frontendDist = getPaths().frontendDist;
+    const indexHtml = path.join(frontendDist, "index.html");
+    const loadUrl = `http://127.0.0.1:${backendHandle.port}/`;
+
+    log.info("Packaged app paths", {
+      appPath: app.getAppPath(),
+      frontendDist,
+      indexHtmlExists: fs.existsSync(indexHtml),
+      backendPort: backendHandle.port,
+      loadUrl,
+    });
+
     await createMainWindow({
       port: backendHandle.port,
       apiPort: backendHandle.port,
